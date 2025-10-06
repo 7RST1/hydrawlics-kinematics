@@ -28,29 +28,32 @@ G0 Z1
 
 void setup(){
   Serial.begin(115200);
+  Serial.setTimeout(500);
   Serial.println("Connected");
 }
+
 
 void loop() {
 
   // some start up time
-  delay(2000);
+  //delay(2000);
 
   if(Serial.available()) {
     //String readed = Seial.readStringUntil('\n');
-    String readed = Serial.readString();
+    String readed = Serial.readStringUntil('\0');;
     readed.trim();
-    processLine(readed);
+    //processLine(readed);
 
-    delay(200);
-    //Serial.println("OK");
+    // Send OK with checksum
+    Serial.print("OK ");
+    Serial.println(calculateChecksum(readed));
   }
 }
 
-void processLine(String &line) {
+uint8_t calculateChecksum(String &line) {
   uint8_t checksum = 0;
   for(int i = 0; i < line.length(); i++) {
       checksum ^= line[i];  // XOR all bytes
   }
-  Serial.println(String("OK ") + checksum);
+  return checksum;
 }
