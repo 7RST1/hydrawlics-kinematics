@@ -414,7 +414,7 @@ void updateValves() {
     Serial.println(count);
   }
 
-  for (Joint j : joints) {
+  for (Joint& j : joints) {
 
     j.update();
   }
