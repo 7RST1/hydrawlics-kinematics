@@ -182,9 +182,9 @@ private:
 
   // Calibration (from real measurements)
   const float m_deg_per_adc = -0.04320625f;
-  const float b_deg_offset  = 98.19999694f;
-  const float angle_min_deg = 54.0f;
-  const float angle_max_deg = 98.2f;
+  const float b_deg_offset  = -81.79999694f;
+  const float angle_min_deg = -126.1f;
+  const float angle_max_deg = -81.8f;
 
   /** The base attachment in parent segment space */
   float pistonBaseDistance;
@@ -264,9 +264,12 @@ void update() {
 
     // --- Step 1: Read current angle from potentiometer ---
     int adc = analogRead(pin_potmeter);
-    currentAngleDeg = mapAdcToDeg(adc);
+    //currentAngleDeg = mapAdcToDeg(adc);
+    currentAngleDeg = -110;
     Serial.print("currentAngle:");
-    Serial.println(currentAngleDeg);
+    Serial.print(currentAngleDeg);
+    Serial.print(" targetAngle:");
+    Serial.println(targetAngleDeg);
 
     // --- Step 2: Calculate target piston length for desired angle ---
     float targetLength = calculatePistonLength(targetAngleDeg);
@@ -280,10 +283,10 @@ void update() {
     float pidOutput = kP * error + kI * integralError + kD * derivative;
     Serial.print("pid:");
     Serial.println(pidOutput);
-    Serial.print("target:");
-    Serial.println(targetLength);
-    Serial.print("Length:");
+    Serial.print("currentLength:");
     Serial.println(currentPistonLength);
+    Serial.print("targetLength: ");
+    Serial.println(targetLength);
     previousError = error;
 
     lastUpdate = millis();
@@ -339,7 +342,7 @@ Joint j1({
   0.050, -90,   // base distance and angle
   0.151, 90   // end distance and angle
 });
-Joint joints[] = { j1 };
+Joint* joints[] = { &j1 };
 
 
 //  LCD for visuals
@@ -404,8 +407,8 @@ void loop() {
   static unsigned long tLCD = 0;
   if (millis() - tLCD > 200) {
     tLCD = millis();
-    float cur = joints[0].getCurrentAngleDeg();
-    float tar = joints[0].getTargetAngleDeg();
+    float cur = joints[0]->getCurrentAngleDeg();
+    float tar = joints[0]->getTargetAngleDeg();
     Serial.print("cur:");
     Serial.println(cur);
     lcdClearLine(0); lcd.print("Cur: "); printFloatOrDash(cur,1); lcd.write(byte(DEG_CHAR));
@@ -425,9 +428,9 @@ void updateValves() {
     Serial.println(count);
   }
 */
-  for (Joint& j : joints) {
+  for (Joint* j : joints) {
 
-    j.update();
+    j->update();
   }
 }
 
@@ -440,7 +443,7 @@ void serialRead() {
 
   if (line.startsWith("A,")) {
     float deg = line.substring(2).toFloat();
-    joints[0].setTargetAngle(deg);
+    joints[0]->setTargetAngle(deg);
     Serial.print("OK TargetAngle="); Serial.println(deg,1);
     return;
   }
