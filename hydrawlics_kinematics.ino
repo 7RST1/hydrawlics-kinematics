@@ -281,8 +281,14 @@ void update() {
 
     float pidOutput = kP * error + kI * integralError + kD * derivative;
 
-    // Anti-windup: only integrate if output is not saturated
-    if (pidOutput >= -1.0 && pidOutput <= 1.0) {
+    // Anti-windup: integrate if not saturated, OR if integrating would reduce saturation
+    bool saturatedHigh = pidOutput > 1.0;
+    bool saturatedLow = pidOutput < -1.0;
+    bool shouldIntegrate = (!saturatedHigh && !saturatedLow) ||
+                           (saturatedHigh && error < 0) ||
+                           (saturatedLow && error > 0);
+
+    if (shouldIntegrate) {
         integralError += error * deltaTime;
     }
 
