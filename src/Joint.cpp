@@ -1,8 +1,8 @@
 #include "Joint.h"
 #include <math.h>
 
-const float DegToRad = M_PI / 180;
-const float RadToDeg = 180 / M_PI;
+constexpr float DegToRad = M_PI / 180;
+constexpr float RadToDeg = 180 / M_PI;
 
 Joint::Joint(JointConfig config) {
   v = new Valve(config.pin_valve_e, config.pin_valve_r);
@@ -57,8 +57,8 @@ void Joint::update() {
 
   // --- Step 1: Read current angle from potentiometer ---
   int adc = analogRead(pin_potmeter);
-  //currentAngleDeg = mapAdcToDeg(adc);
-  currentAngleDeg = -110;
+  currentAngleDeg = mapAdcToDeg(adc);
+  //currentAngleDeg = -110;
   Serial.print("currentAngle:");
   Serial.print(currentAngleDeg);
   Serial.print(" targetAngle:");
@@ -70,6 +70,14 @@ void Joint::update() {
 
   // PID control to get desired piston velocity
   float error = targetLength - currentPistonLength;
+
+  // Deadband: reset integral when very close to target (prevents lingering)
+  const float deadband = 0.001f; // 1mm tolerance
+  if (abs(error) < deadband) {
+      integralError = 0;
+      error = 0; // Stop control signal completely within deadband
+  }
+
   float derivative = (error - previousError) / deltaTime;
 
   float pidOutput = kP * error + kI * integralError + kD * derivative;
@@ -81,21 +89,23 @@ void Joint::update() {
                          (saturatedHigh && error < 0) ||
                          (saturatedLow && error > 0);
 
-  if (shouldIntegrate) {
+  if (shouldIntegrate && abs(error) >= deadband) {
       integralError += error * deltaTime;
   }
 
   // Clamp output to valve range
   pidOutput = constrain(pidOutput, -1.0, 1.0);
 
+  lastPID = pidOutput;
+
   Serial.print("pid:");
   Serial.println(pidOutput);
   Serial.print("integral:");
   Serial.println(integralError);
   Serial.print("currentLength:");
-  Serial.println(currentPistonLength);
+  Serial.println(currentPistonLength, 6);
   Serial.print("targetLength: ");
-  Serial.println(targetLength);
+  Serial.println(targetLength, 6);
   previousError = error;
 
   lastUpdate = millis();
@@ -129,4 +139,8 @@ uint8_t Joint::getExtendDuty() const {
 
 uint8_t Joint::getRetractDuty() const {
   return v->getLastRetractDuty();
+}
+
+float Joint::getLastPID() const {
+  return lastPID;
 }

@@ -1,5 +1,7 @@
 #include "LowFreqPWM.h"
 
+#define RELAY_ACTIVE_LOW
+
 LowFreqPWM::LowFreqPWM(uint8_t _pin, float frequency, float maxActionRate) {
   pin = _pin;
   period = 1000.0 / frequency;  // PWM period in ms
@@ -27,7 +29,7 @@ void LowFreqPWM::setDutyCycle(uint8_t dc) {
 
     #ifdef VERBOSE
     // notify if clamped, and verbose
-    if (false && dutyCycle != dc) {
+    if (dutyCycle != dc) {
       Serial.print(" c ");
       Serial.print(dc);
       Serial.print(" => ");
@@ -55,6 +57,12 @@ void LowFreqPWM::update() {
   if (shouldBeOn != state && ((now - lastToggle) >= minStateTime)) {
     state = shouldBeOn;
     lastToggle = millis();
+
+    // Invert for active-low relays only when writing to pin
+#ifdef RELAY_ACTIVE_LOW
+    digitalWrite(pin, !state);
+#else
     digitalWrite(pin, state);
+#endif
   }
 }

@@ -45,12 +45,13 @@ private:
   float maxPistonLength = 0.1657f;
 
   float kP = 2.0f;
-  float kI = 0.1f;
-  float kD = 0.5f;
+  float kI = 0.05f;
+  float kD = 2.0f;
 
   // PID state
   float integralError = 0;
   float previousError = 0;
+  float lastPID = 0;
 
   float targetAngleDeg = 0.0f;
   float currentAngleDeg = NAN;
@@ -77,6 +78,7 @@ public:
   float getCurrentAngleDeg() const;
   uint8_t getExtendDuty() const;
   uint8_t getRetractDuty() const;
+  float getLastPID() const;
 };
 
 #endif // JOINT_H
