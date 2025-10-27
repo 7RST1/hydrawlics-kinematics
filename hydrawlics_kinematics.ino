@@ -31,6 +31,9 @@ byte degreeGlyph[8] = {
   B00000,B00000,B00000,B00000
 };
 
+const float DegToRad = M_PI / 180;
+const float RadToDeg = 180 / M_PI;
+
 // Forward declarations
 void updateValves();
 void serialRead();
@@ -163,6 +166,14 @@ struct JointConfig {
   uint8_t pin_valve_e;
   uint8_t pin_valve_r;
   uint8_t pin_potmeter;
+
+  /** The base attachment in parent segment space */
+  float pistonBaseDistance;
+  float pistonBaseAngleInParentSpace;
+
+  /** The end attachment in child segment space (rotates with the joint) */
+  float pistonEndDistance;
+  float pistonEndAngle;
 };
 
 // Joint describes the whole joint, including;
@@ -180,12 +191,52 @@ private:
   const float angle_min_deg = 54.0f;
   const float angle_max_deg = 98.2f;
 
+  /** The base attachment in parent segment space */
+  uint8_t pistonBaseDistance;
+  uint8_t pistonBaseAngleInParentSpace;
+
+  /** The end attachment in child segment space (rotates with the joint) */
+  uint8_t pistonEndDistance;
+  uint8_t pistonEndAngle;
+
+  float minPistonLength = 0.128f;
+  float maxPistonLength = 0.1657f;
+
+  float kP = 2.0f;
+  float kI = 0.1f;
+  float kD = 0.5f;
+
+  // PID state
+  float integralError = 0;
+  float previousError = 0;
+
   float targetAngleDeg = 0.0f;
   float currentAngleDeg = NAN;
 
-  float calculatePistonLength(float jointAngleDeg) {
-    // Placeholder: geometry-based piston length can be added later
-    return jointAngleDeg; // (not used yet in hardware)
+  long lastUpdate = 0;
+
+  float calculatePistonLength(float jointAngle) {
+    // Calculate the angle in the triangle at the joint pivot
+    // pistonBaseAngleInParentSpace: angle to base attachment (in parent's space, doesn't change with joint rotation)
+    // pistonEndAngle: angle to end attachment (in joint's local space)
+    // jointAngle: current rotation of the joint (in parent's space)
+
+    // The end attachment's angle in parent space is: pistonEndAngle + jointAngle
+    // The triangle angle at the joint is the difference between the two attachment angles
+    float triangleAngle = (pistonEndAngle + jointAngle) - pistonBaseAngleInParentSpace;
+    float triangleAngleRad = triangleAngle * DegToRad;
+
+    // Use law of cosines: c² = a² + b² - 2ab*cos(C)
+    // where c is the piston length, a and b are the attachment distances
+    //Debug.Log(_pistonBaseDistance +" "+ _pistonEndDistance);
+    
+    float length = sqrt(
+        pistonBaseDistance * pistonBaseDistance +
+        pistonEndDistance * pistonEndDistance -
+        2 * pistonBaseDistance * pistonEndDistance * cos(triangleAngleRad)
+    );
+
+    return constrain(length, minPistonLength, maxPistonLength);
   }
 
   float mapAdcToDeg(int adc) const {
@@ -197,6 +248,15 @@ public:
   Joint(JointConfig config) {
     v = new Valve(config.pin_valve_e, config.pin_valve_r);
     pin_potmeter = config.pin_potmeter;
+
+    /** The base attachment in parent segment space */
+    pistonBaseDistance = config.pistonBaseDistance;
+    pistonBaseAngleInParentSpace = config.pistonBaseAngleInParentSpace;
+
+    /** The end attachment in child segment space (rotates with the joint) */
+    pistonEndDistance = config.pistonEndDistance;
+    pistonEndAngle = config.pistonEndAngle;
+
     pinMode(pin_potmeter, INPUT);
     targetAngleDeg = (angle_min_deg + angle_max_deg) * 0.5f; // Start mid position
   }
@@ -205,28 +265,34 @@ public:
 // Reads the potentiometer angle, compares it to the target angle,
 // and adjusts valve outputs using proportional control with a 0.5° deadband
 void update() {
+    long deltaTime = millis() - lastUpdate;
+
     // --- Step 1: Read current angle from potentiometer ---
     int adc = analogRead(pin_potmeter);
     currentAngleDeg = mapAdcToDeg(adc);
 
-    // --- Step 2: Simple proportional control with 0.5° deadband ---
-    float error = targetAngleDeg - currentAngleDeg;
-    float move = 0.0f;
-    if (fabsf(error) >= 0.5f) move = constrain(error / 10.0f, -1.0f, 1.0f);
+    // --- Step 2: Calculate target piston length for desired angle ---
+    float targetLength = calculatePistonLength(targetAngleDeg);
+    float currentPistonLength = calculatePistonLength(currentAngleDeg);
+    
+    // PID control to get desired piston velocity
+    float error = targetLength - currentPistonLength;
+    integralError += error * deltaTime;
+    float derivative = (error - previousError) / deltaTime;
+    
+    float pidOutput = kP * error + kI * integralError + kD * derivative;
+    previousError = error;
+
+    lastUpdate = millis();
 
     // --- Step 3: Send control signal to valve ---
-    v->updatePWMs(move);
+    v->updatePWMs(pidOutput);
     v->update();
 }
 
 // Resets the joint's target angle to its mid position
 void resetToInit() {
     setTargetAngle((angle_min_deg + angle_max_deg) * 0.5f);
-}
-
-// Calculates piston length from a given joint angle (law of cosines)
-float CalculatePistonLength(float jointAngleDeg) {
-    return calculatePistonLength(jointAngleDeg);
 }
 
 // Accessors for current state and control values
@@ -265,7 +331,11 @@ PumpManager pumpMgr;
 
 //  Instances
 //  Only one joint is active in this prototype.
-Joint j1({22, 23, A3});
+Joint j1({
+  22, 23, A3,
+  0.050, -90,   // base distance and angle
+  0.151, 90   // end distance and angle
+});
 Joint joints[] = { j1 };
 
 
