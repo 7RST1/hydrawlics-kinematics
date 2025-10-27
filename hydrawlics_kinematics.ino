@@ -406,9 +406,18 @@ void loop() {
 //  updateValves()
 //  Called once per loop to update the joint logic and pump state.
 void updateValves() {
-  joints[0].update();
-  bool demand = (joints[0].getExtendDuty() > 0 || joints[0].getRetractDuty() > 0);
-  pumpMgr.update(demand);
+  static int count = 0;
+  static float lastupdate = 0;
+  if (millis() - lastupdate > 2000) {
+    count = (count + 10) % 110;
+    lastupdate = millis();
+    Serial.println(count);
+  }
+
+  for (Joint j : joints) {
+
+    j.update();
+  }
 }
 
 //  Serial Communication
