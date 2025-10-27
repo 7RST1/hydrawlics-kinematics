@@ -9,7 +9,7 @@
 
 #define SELFTEST_ON_START 1          // Run relay polarity test at startup (disable after confirmed)
 #define RELAY_ACTIVE_LOW   true      // Set false if relay board is active-HIGH (depends on module type)
-
+#define VERBOSE
 #include <Arduino.h>
 #include <math.h>
 #include <Wire.h>
@@ -130,6 +130,7 @@ public:
 
   // move ∈ [-1, 1]  (− = retract, + = extend, 0 = hold)
   void updatePWMs(float move) {
+    Serial.println(move);
     float normalized = constrain(move, -1.0, 1.0);
     uint8_t dc = (uint8_t)(fabsf(normalized) * 100.0f);
 
@@ -205,7 +206,7 @@ private:
   float previousError = 0;
 
   float targetAngleDeg = 0.0f;
-  float currentAngleDeg = NAN;
+  float currentAngleDeg = NAN; 
 
   long lastUpdate = 0;
 
@@ -264,6 +265,8 @@ void update() {
     // --- Step 1: Read current angle from potentiometer ---
     int adc = analogRead(pin_potmeter);
     currentAngleDeg = mapAdcToDeg(adc);
+    Serial.print("currentAngle:");
+    Serial.println(currentAngleDeg);
 
     // --- Step 2: Calculate target piston length for desired angle ---
     float targetLength = calculatePistonLength(targetAngleDeg);
@@ -275,6 +278,12 @@ void update() {
     float derivative = (error - previousError) / deltaTime;
     
     float pidOutput = kP * error + kI * integralError + kD * derivative;
+    Serial.print("pid:");
+    Serial.println(pidOutput);
+    Serial.print("target:");
+    Serial.println(targetLength);
+    Serial.print("Length:");
+    Serial.println(currentPistonLength);
     previousError = error;
 
     lastUpdate = millis();
@@ -397,6 +406,8 @@ void loop() {
     tLCD = millis();
     float cur = joints[0].getCurrentAngleDeg();
     float tar = joints[0].getTargetAngleDeg();
+    Serial.print("cur:");
+    Serial.println(cur);
     lcdClearLine(0); lcd.print("Cur: "); printFloatOrDash(cur,1); lcd.write(byte(DEG_CHAR));
     lcdClearLine(1); lcd.print("Tar: "); printFloatOrDash(tar,1); lcd.write(byte(DEG_CHAR));
     lcd.setCursor(12,1); lcd.print("P:"); lcd.print(pumpMgr.isOn() ? '1' : '0');
@@ -408,12 +419,12 @@ void loop() {
 void updateValves() {
   static int count = 0;
   static float lastupdate = 0;
-  if (millis() - lastupdate > 2000) {
+  /*if (millis() - lastupdate > 2000) {
     count = (count + 10) % 110;
     lastupdate = millis();
     Serial.println(count);
   }
-
+*/
   for (Joint& j : joints) {
 
     j.update();
