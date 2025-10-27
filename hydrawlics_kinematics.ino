@@ -192,12 +192,12 @@ private:
   const float angle_max_deg = 98.2f;
 
   /** The base attachment in parent segment space */
-  uint8_t pistonBaseDistance;
-  uint8_t pistonBaseAngleInParentSpace;
+  float pistonBaseDistance;
+  float pistonBaseAngleInParentSpace;
 
   /** The end attachment in child segment space (rotates with the joint) */
-  uint8_t pistonEndDistance;
-  uint8_t pistonEndAngle;
+  float pistonEndDistance;
+  float pistonEndAngle;
 
   float minPistonLength = 0.128f;
   float maxPistonLength = 0.1657f;
