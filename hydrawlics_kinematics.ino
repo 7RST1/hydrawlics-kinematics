@@ -52,39 +52,30 @@ private:
   unsigned long lastToggle;
   uint8_t dutyCycle;
   bool state;
-  
-  // Writes the correct ON/OFF signal depending on relay type (active-low or active-high)
-  inline void applyOutput(bool on) {
-    // Support both active-low and active-high relay boards
-    if (RELAY_ACTIVE_LOW) digitalWrite(pin, on ? LOW : HIGH);
-    else                  digitalWrite(pin, on ? HIGH : LOW);
-  }
-
 
 public:
   LowFreqPWM(uint8_t _pin, float frequency, float maxActionRate) {
     pin = _pin;
-    period = 1000.0 / frequency;       // PWM period (ms)
-    minStateTime = 1000.0 / maxActionRate; // Min state time (ms)
+    period = 1000.0 / frequency;  // PWM period in ms
+    minStateTime = 1000.0 / maxActionRate;  // Min state duration in ms
     dutyCycle = 0;
     state = false;
     lastToggle = 0;
     pinMode(pin, OUTPUT);
-    applyOutput(false);                // Start OFF
   }
 
   void setDutyCycle(uint8_t dc) {
-    // Clamp PWM to avoid too short pulses
     // Clamp to valid ranges
     // Note! These could be adjusted to include some small values
     // in the sims it was 0.002. This is likely needed because the PID will
     // will never not move. Converge but never match.
     if (dc == 0 || dc == 100) {
-      dutyCycle = dc; // Full on/off is allowed
+      dutyCycle = dc;  // Full on/off is allowed
     } else {
       // Calculate min/max valid duty cycles
       uint8_t minDC = (minStateTime * 100) / period;
       uint8_t maxDC = 100 - minDC;
+
       // Clamp to valid range
       dutyCycle = constrain(dc, minDC, maxDC);
 
@@ -97,25 +88,28 @@ public:
         Serial.print(dutyCycle);
       }
       #endif
-
     }
   }
 
   void update() {
-    // Full ON or OFF (faster response)
-    if (dutyCycle == 0)  { if (state){ state=false; applyOutput(false);} lastToggle=millis(); return; }
-    if (dutyCycle == 100){ if (!state){state=true;  applyOutput(true);}  lastToggle=millis(); return; }
-
-    // Periodic PWM switching
     unsigned long now = millis();
     unsigned long elapsed = (now - lastToggle) % period;
     unsigned long onTime = (period * dutyCycle) / 100;
-    bool shouldBeOn = (elapsed < onTime);
+
+    #ifdef VERBOSE
+    Serial.print(elapsed);
+    Serial.print(" ");
+    Serial.print(onTime);
+    Serial.print(" ");
+    Serial.println(dutyCycle);
+    #endif
+
+    bool shouldBeOn = (elapsed < onTime) && (dutyCycle > 0);
 
     if (shouldBeOn != state && ((now - lastToggle) >= minStateTime)) {
       state = shouldBeOn;
-      lastToggle = now;
-      applyOutput(state);
+      lastToggle = millis();
+      digitalWrite(pin, state);
     }
   }
 };
