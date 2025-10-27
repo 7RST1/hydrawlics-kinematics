@@ -118,9 +118,10 @@ void loop() {
     float tar = joints[0]->getTargetAngleDeg();
     Serial.print("cur:");
     Serial.println(cur);
-    lcdClearLine(0); lcd.print("Cur: "); printFloatOrDash(cur,1); lcd.write(byte(DEG_CHAR));
-    lcdClearLine(1); lcd.print("Tar: "); printFloatOrDash(tar,1); lcd.write(byte(DEG_CHAR));
-    lcd.setCursor(12,1); lcd.print("P:"); lcd.print(pumpMgr.isOn() ? '1' : '0');
+    lcdClearLine(0); lcd.print("C:"); printFloatOrDash(cur,1); lcd.write(byte(DEG_CHAR));
+    lcd.setCursor(9,0); lcd.print("p:"); lcd.print(joints[0]->getLastPID());
+    lcdClearLine(1); lcd.print("T:"); printFloatOrDash(tar,1); lcd.write(byte(DEG_CHAR));
+    lcd.setCursor(9,1); lcd.print("P:"); lcd.print(pumpMgr.isOn() ? '1' : '0');
   }
 }
 
@@ -135,10 +136,14 @@ void updateValves() {
     Serial.println(count);
   }
 */
+  bool demand = false;
   for (Joint* j : joints) {
-
     j->update();
+    // check if this joint has any demand
+    demand |= (j->getExtendDuty() > 0 || j->getRetractDuty() > 0);
   }
+  // if any of the joints have any demand, close the pump cicuit
+  pumpMgr.update(demand);
 }
 
 //  Serial Communication
