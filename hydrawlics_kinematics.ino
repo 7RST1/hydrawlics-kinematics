@@ -277,12 +277,22 @@ void update() {
     
     // PID control to get desired piston velocity
     float error = targetLength - currentPistonLength;
-    integralError += error * deltaTime;
     float derivative = (error - previousError) / deltaTime;
-    
+
     float pidOutput = kP * error + kI * integralError + kD * derivative;
+
+    // Anti-windup: only integrate if output is not saturated
+    if (pidOutput >= -1.0 && pidOutput <= 1.0) {
+        integralError += error * deltaTime;
+    }
+
+    // Clamp output to valve range
+    pidOutput = constrain(pidOutput, -1.0, 1.0);
+
     Serial.print("pid:");
     Serial.println(pidOutput);
+    Serial.print("integral:");
+    Serial.println(integralError);
     Serial.print("currentLength:");
     Serial.println(currentPistonLength);
     Serial.print("targetLength: ");
