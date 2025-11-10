@@ -150,7 +150,7 @@ GCodeParseResult ArmController::parseGCodeLine(const String& line, GCodeCommand&
     String cleanLine = (commentPos >= 0) ? stringSubstr(line, 0, commentPos) : line;
     stringTrim(cleanLine);
 
-    if (cleanLine.length() == 0) {
+    if (cleanLine.length() == 0 || cleanLine[0] == '(') {
         return GCodeParseResult::EmptyLine;
     }
 
@@ -185,6 +185,13 @@ GCodeParseResult ArmController::parseGCodeLine(const String& line, GCodeCommand&
         return GCodeParseResult::ModeChange;  // Not a movement command
     }
 
+    // Handle G21 (means use millimeter units, default is meters)
+    if (commandType == "G21") {
+        // if set, we need to multiply the inputs with 1000
+        inputValueMultiplier = 1000;
+        return GCodeParseResult::ModeChange;
+    }
+
     // Only process movement commands (G00, G01, G02, G03)
     if (!stringStartsWith(commandType, "G0") && !stringStartsWith(commandType, "G1")) {
         return GCodeParseResult::InvalidCommand;
@@ -205,6 +212,7 @@ GCodeParseResult ArmController::parseGCodeLine(const String& line, GCodeCommand&
         float value = parseFloat(valueStr, success);
 
         if (success) {
+            value *= inputValueMultiplier;
             switch (param) {
                 case 'X':
                     outCommand.x = value;

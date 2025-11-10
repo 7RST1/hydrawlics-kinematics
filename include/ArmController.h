@@ -142,6 +142,9 @@ private:
     float a3;  // Length of second arm segment
     float endEffectorMagnitude;  // Length of end effector
 
+    float inputValueMultiplier = 1; // for translation from millimeters and such
+    // default expected input is meters, hence 1
+
     // Drawing space configuration
     Vector3 drawSpaceOffset;
 

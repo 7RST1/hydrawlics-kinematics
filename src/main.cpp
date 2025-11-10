@@ -223,7 +223,8 @@ void serialRead() {
       case GCodeParseResult::EmptyLine:
       case GCodeParseResult::ModeChange:
       default:
-        // do nothing
+        Serial.print("OK ");
+        Serial.println(calculateChecksum(line));
         break;
     }
   }
