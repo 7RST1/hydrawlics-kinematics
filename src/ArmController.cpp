@@ -1,5 +1,7 @@
 #include "ArmController.h"
 
+#include "Joint.h"
+
 #ifdef NATIVE_TEST
     #include <algorithm>
     #include <sstream>
@@ -66,7 +68,7 @@ namespace {
     }
 }
 
-ArmController::ArmController() {
+ArmController::ArmController(Joint* j0, Joint* j1, Joint* j2, Joint* j3): j0(j0), j1(j1), j2(j2), j3(j3) {
     // Default arm dimensions from Unity simulation (in meters)
     a1 = 0.098f;
     a2 = 0.270f;
@@ -142,14 +144,14 @@ float ArmController::parseFloat(const String& str, bool& success) {
     return success ? atof(str.c_str()) : 0.0f;
 }
 
-bool ArmController::parseGCodeLine(const String& line, GCodeCommand& outCommand) {
+GCodeParseResult ArmController::parseGCodeLine(const String& line, GCodeCommand& outCommand) {
     // Remove comments (everything after semicolon)
     int commentPos = stringFind(line, ';');
     String cleanLine = (commentPos >= 0) ? stringSubstr(line, 0, commentPos) : line;
     stringTrim(cleanLine);
 
     if (cleanLine.length() == 0) {
-        return false;
+        return GCodeParseResult::EmptyLine;
     }
 
     // Split line into tokens (simple space-based tokenization)
@@ -168,7 +170,7 @@ bool ArmController::parseGCodeLine(const String& line, GCodeCommand& outCommand)
     }
 
     if (tokenCount == 0) {
-        return false;
+        return GCodeParseResult::EmptyLine;
     }
 
     String commandType = tokens[0];
@@ -177,15 +179,15 @@ bool ArmController::parseGCodeLine(const String& line, GCodeCommand& outCommand)
     // Handle mode changes
     if (commandType == "G90") {
         setAbsoluteMode(true);
-        return false;  // Not a movement command
+        return GCodeParseResult::ModeChange;  // Not a movement command
     } else if (commandType == "G91") {
         setAbsoluteMode(false);
-        return false;  // Not a movement command
+        return GCodeParseResult::ModeChange;  // Not a movement command
     }
 
     // Only process movement commands (G00, G01, G02, G03)
     if (!stringStartsWith(commandType, "G0") && !stringStartsWith(commandType, "G1")) {
-        return false;
+        return GCodeParseResult::InvalidCommand;
     }
 
     outCommand = GCodeCommand(commandType);
@@ -226,11 +228,11 @@ bool ArmController::parseGCodeLine(const String& line, GCodeCommand& outCommand)
         }
     }
 
-    return true;
+    return GCodeParseResult::Success;
 }
 
 void ArmController::processGCodeCommand(const GCodeCommand& cmd) {
-    // Calculate target position
+    // Calculate target position in GCode space
     Vector3 targetPos = currentPosition;
 
     if (absoluteMode) {
@@ -249,6 +251,18 @@ void ArmController::processGCodeCommand(const GCodeCommand& cmd) {
 
     debugLog("Executing " + cmd.commandType + " -> X:" + floatToString(targetPos.x, 3) +
              " Y:" + floatToString(targetPos.y, 3) + " Z:" + floatToString(targetPos.z, 3));
+
+#ifndef NATIVE_TEST
+    // Calculate inverse kinematics and apply to joints
+    JointAngles angles = moveToDrawingSpace(targetPos);
+
+    if (angles.valid) {
+        applyJointAngles(angles);
+        debugLog("IK Success - Angles applied to joints");
+    } else {
+        debugLog("IK Failed - Position unreachable");
+    }
+#endif
 }
 
 Vector3 ArmController::translateToWorldSpace(const Vector3& gCodePos) {
@@ -386,7 +400,25 @@ JointAngles ArmController::moveToWorldSpace(const Vector3& worldPos) {
     return calculateJointAngles(worldPos);
 }
 
-bool ArmController::isAtTarget() {
+#ifndef NATIVE_TEST
+bool ArmController::isAtTarget() const {
     // Loop through all joints and check that they are withing tolerances
-
+    const bool everythingAit = j0->isAtTarget(jointAngleTolerance) &&
+        j1->isAtTarget(jointAngleTolerance) &&
+        j2->isAtTarget(jointAngleTolerance) &&
+        j3->isAtTarget(jointAngleTolerance);
+    return everythingAit;
 }
+
+void ArmController::applyJointAngles(const JointAngles& angles) {
+    // Store the target angles
+    targetAngles = angles;
+
+    // Apply to physical joints
+    j0->setTargetAngle(angles.baseRotation);
+    j1->setTargetAngle(angles.joint1Angle);
+    j2->setTargetAngle(angles.joint2Angle);
+    j3->setTargetAngle(angles.joint3Angle);
+}
+#endif
+

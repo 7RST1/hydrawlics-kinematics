@@ -9,7 +9,7 @@
 
 #define SELFTEST_ON_START 1          // Run relay polarity test at startup (disable after confirmed)
 #define RELAY_ACTIVE_LOW   true      // Set false if relay board is active-HIGH (depends on module type)
-#define VERBOSE
+//#define VERBOSE
 
 #include <Arduino.h>
 #include <Wire.h>
@@ -44,17 +44,32 @@ void processCommandQueue();
 uint8_t calculateChecksum(String &line);
 
 PumpManager pumpMgr;
-ArmController armController;
 GCodeCommandQueue gcodeQueue;
 
 //  Instances
 //  Only one joint is active in this prototype.
-Joint j1({
+Joint j0({
   22, 23, A3,
   0.050, -90,   // base distance and angle
   0.151, 90   // end distance and angle
 });
-Joint* joints[] = { &j1 };
+Joint j1({
+  10, 11, A4,
+  0.050, -90,   // base distance and angle
+  0.151, 90   // end distance and angle
+});
+Joint j2({
+  12, 13, A5,
+  0.050, -90,   // base distance and angle
+  0.151, 90   // end distance and angle
+});
+Joint j3({
+  14, 15, A6,
+  0.050, -90,   // base distance and angle
+  0.151, 90   // end distance and angle
+});
+Joint* joints[] = { &j0, &j1, &j2, &j3 };
+ArmController armController(&j0, &j1, &j2, &j3);
 
 
 //  LCD for visuals
@@ -106,6 +121,7 @@ void setup() {
   lcd.setCursor(0,1); lcd.print("Angle ctrl ready");
   delay(700); lcd.clear();
 
+
   pumpMgr.begin();
   selfTestOnce();  // One-time hardware verification
 }
@@ -124,8 +140,10 @@ void loop() {
     tLCD = millis();
     float cur = joints[0]->getCurrentAngleDeg();
     float tar = joints[0]->getTargetAngleDeg();
+#ifdef VERBOSE
     Serial.print("cur:");
     Serial.println(cur);
+#endif
     lcdClearLine(0); lcd.print("C:"); printFloatOrDash(cur,1); lcd.write(byte(DEG_CHAR));
     lcd.setCursor(9,0); lcd.print("p:"); lcd.print(joints[0]->getLastPID());
     lcdClearLine(1); lcd.print("T:"); printFloatOrDash(tar,1); lcd.write(byte(DEG_CHAR));
@@ -153,17 +171,31 @@ void updateValves() {
   // if any of the joints have any demand, close the pump cicuit
   pumpMgr.update(demand);
 }
+// define to emulate slowely filling beyond limit
+//#define TIMEOUT_READY
 
 //  Serial Communication with GCode Queue
 //  Protocol: P sends 1 line → A responds "OK <checksum>"
 //  When queue < 5, A sends "Ready" to continue
 void serialRead() {
   static bool lastSentReady = false;
+#ifdef TIMEOUT_READY
+  static unsigned long lastSentReadyTime = 0;
+#endif
 
   // Check if we should send Ready signal
-  if (gcodeQueue.shouldSendReady() && !lastSentReady) {
+  if (
+    (gcodeQueue.shouldSendReady() &&
+    !lastSentReady)
+#ifdef TIMEOUT_READY
+    || millis() - lastSentReadyTime > 5000
+#endif
+    ) {
     Serial.println("Ready");
     lastSentReady = true;
+#ifdef TIMEOUT_READY
+    lastSentReadyTime = millis();
+#endif
   } else if (!gcodeQueue.shouldSendReady()) {
     lastSentReady = false;
   }
@@ -177,15 +209,22 @@ void serialRead() {
 
     // Parse and enqueue GCode command
     GCodeCommand cmd;
-    if (armController.parseGCodeLine(line, cmd)) {
-      if (gcodeQueue.enqueue(cmd)) {
-        Serial.print("OK ");
-        Serial.println(calculateChecksum(line));
-      } else {
-        Serial.println("ERR Queue Full");
-      }
-    } else {
-      Serial.println("ERR Invalid GCode");
+    switch (armController.parseGCodeLine(line, cmd)) {
+      case GCodeParseResult::Success:
+        if (gcodeQueue.enqueue(cmd)) {
+          Serial.print("OK ");
+          Serial.println(calculateChecksum(line));
+        } else {
+          Serial.println("ERR Queue Full");
+        }
+        break;
+      case GCodeParseResult::InvalidCommand:
+        Serial.println("ERR Invalid GCode");
+      case GCodeParseResult::EmptyLine:
+      case GCodeParseResult::ModeChange:
+      default:
+        // do nothing
+        break;
     }
   }
 }

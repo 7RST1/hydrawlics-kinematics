@@ -59,10 +59,12 @@ void Joint::update() {
   int adc = analogRead(pin_potmeter);
   currentAngleDeg = mapAdcToDeg(adc);
   //currentAngleDeg = -110;
+#ifdef VERBOSE
   Serial.print("currentAngle:");
   Serial.print(currentAngleDeg);
   Serial.print(" targetAngle:");
   Serial.println(targetAngleDeg);
+#endif
 
   // --- Step 2: Calculate target piston length for desired angle ---
   float targetLength = calculatePistonLength(targetAngleDeg);
@@ -98,6 +100,7 @@ void Joint::update() {
 
   lastPID = pidOutput;
 
+#ifdef VERBOSE
   Serial.print("pid:");
   Serial.println(pidOutput);
   Serial.print("integral:");
@@ -106,6 +109,7 @@ void Joint::update() {
   Serial.println(currentPistonLength, 6);
   Serial.print("targetLength: ");
   Serial.println(targetLength, 6);
+#endif
   previousError = error;
 
   lastUpdate = millis();
@@ -143,4 +147,9 @@ uint8_t Joint::getRetractDuty() const {
 
 float Joint::getLastPID() const {
   return lastPID;
+}
+
+bool Joint::isAtTarget(const float degreeTolerance) const {
+  const float angleDiff = abs(targetAngleDeg - currentAngleDeg);
+  return angleDiff <= degreeTolerance;
 }

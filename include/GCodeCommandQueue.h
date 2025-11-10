@@ -7,7 +7,7 @@
 // Circular queue for GCode commands
 class GCodeCommandQueue {
 public:
-    static constexpr uint8_t MAX_QUEUE_SIZE = 10;
+    static constexpr uint8_t MAX_QUEUE_SIZE = 20;
     static constexpr uint8_t LOW_THRESHOLD = 5;
 
     GCodeCommandQueue();

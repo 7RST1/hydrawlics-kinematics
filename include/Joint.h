@@ -79,6 +79,8 @@ public:
   uint8_t getExtendDuty() const;
   uint8_t getRetractDuty() const;
   float getLastPID() const;
+
+  bool isAtTarget(float degreeTolerance) const;
 };
 
 #endif // JOINT_H

@@ -8,7 +8,7 @@ Valve::Valve(uint8_t _pin_e, uint8_t _pin_r) {
 
 // move ∈ [-1, 1]  (− = retract, + = extend, 0 = hold)
 void Valve::updatePWMs(float move) {
-  Serial.println(move);
+  //Serial.println(move);
   float normalized = constrain(move, -1.0, 1.0);
   uint8_t dc = (uint8_t)(fabsf(normalized) * 100.0f);
 
