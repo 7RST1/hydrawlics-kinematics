@@ -72,14 +72,13 @@ struct GCodeCommand {
     float x;
     float y;
     float z;
-    float feedRate;
 
     GCodeCommand() : hasX(false), hasY(false), hasZ(false), hasFeedRate(false),
-                     x(0), y(0), z(0), feedRate(0) {}
+                     x(0), y(0), z(0) {}
 
     explicit GCodeCommand(const String& type) : commandType(type), hasX(false), hasY(false),
                                                 hasZ(false), hasFeedRate(false),
-                                                x(0), y(0), z(0), feedRate(0) {}
+                                                x(0), y(0), z(0) {}
 };
 
 // Result structure for joint angles
@@ -108,7 +107,7 @@ public:
 
     // Configuration
     void setArmDimensions(float a1, float a2, float a3, float endEffectorLength);
-    void setDrawingSpaceOffset(Vector3 offset);
+    void setDrawingSpaceOffset(const Vector3 &offset);
     void setJointAngleTolerance(float tolerance);
 
 #ifndef NATIVE_TEST
@@ -124,9 +123,9 @@ public:
     bool isAbsoluteMode() const { return absoluteMode; }
 
     // Movement functions
-    JointAngles calculateJointAngles(const Vector3& position);
-    JointAngles moveToDrawingSpace(const Vector3& gCodePos);
-    JointAngles moveToWorldSpace(const Vector3& worldPos);
+    JointAngles calculateJointAngles(const Vector3& position) const;
+    JointAngles moveToDrawingSpace(const Vector3& gCodePos) const;
+    JointAngles moveToWorldSpace(const Vector3& worldPos) const;
 
     // State getters
     Vector3 getCurrentPosition() const { return currentPosition; }
@@ -168,14 +167,14 @@ private:
 #endif
 
     // Helper functions
-    JointAngles calculateInverseKinematics(const Vector3& endEffectorOriginPos);
-    Vector3 adjustForEndEffector(const Vector3& tipPosition, const Vector3& basePosition);
-    Vector3 translateToWorldSpace(const Vector3& gCodePos);
+    JointAngles calculateInverseKinematics(const Vector3& endEffectorOriginPos) const;
+    Vector3 adjustForEndEffector(const Vector3& tipPosition, const Vector3& basePosition) const;
+    Vector3 translateToWorldSpace(const Vector3& gCodePos) const;
 
     // Utility
     void debugLog(const String& message) const;
-    float parseFloat(const String& str, bool& success);
-    String floatToString(float value, int decimals);
+    static float parseFloat(const String& str, bool& success);
+    static String floatToString(float value, int decimals);
 };
 
 #endif // ARM_CONTROLLER_H

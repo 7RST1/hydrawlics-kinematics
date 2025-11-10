@@ -2,7 +2,7 @@
 
 #define RELAY_ACTIVE_LOW
 
-LowFreqPWM::LowFreqPWM(uint8_t _pin, float frequency, float maxActionRate) {
+LowFreqPWM::LowFreqPWM(const uint8_t _pin, const float frequency, const float maxActionRate) {
   pin = _pin;
   period = 1000.0 / frequency;  // PWM period in ms
   minStateTime = 1000.0 / maxActionRate;  // Min state duration in ms
@@ -12,7 +12,7 @@ LowFreqPWM::LowFreqPWM(uint8_t _pin, float frequency, float maxActionRate) {
   pinMode(pin, OUTPUT);
 }
 
-void LowFreqPWM::setDutyCycle(uint8_t dc) {
+void LowFreqPWM::setDutyCycle(const uint8_t dc) {
   // Clamp to valid ranges
   // Note! These could be adjusted to include some small values
   // in the sims it was 0.002. This is likely needed because the PID will
@@ -21,8 +21,8 @@ void LowFreqPWM::setDutyCycle(uint8_t dc) {
     dutyCycle = dc;  // Full on/off is allowed
   } else {
     // Calculate min/max valid duty cycles
-    uint8_t minDC = (minStateTime * 100) / period;
-    uint8_t maxDC = 100 - minDC;
+    const uint8_t minDC = (minStateTime * 100) / period;
+    const uint8_t maxDC = 100 - minDC;
 
     // Clamp to valid range
     dutyCycle = constrain(dc, minDC, maxDC);
@@ -40,9 +40,9 @@ void LowFreqPWM::setDutyCycle(uint8_t dc) {
 }
 
 void LowFreqPWM::update() {
-  unsigned long now = millis();
-  unsigned long elapsed = (now - lastToggle) % period;
-  unsigned long onTime = (period * dutyCycle) / 100;
+  const unsigned long now = millis();
+  const unsigned long elapsed = (now - lastToggle) % period;
+  const unsigned long onTime = (period * dutyCycle) / 100;
 
   #ifdef VERBOSE
   Serial.print(elapsed);
@@ -52,7 +52,7 @@ void LowFreqPWM::update() {
   Serial.println(dutyCycle);
   #endif
 
-  bool shouldBeOn = (elapsed < onTime) && (dutyCycle > 0);
+  const bool shouldBeOn = (elapsed < onTime) && (dutyCycle > 0);
 
   if (shouldBeOn != state && ((now - lastToggle) >= minStateTime)) {
     state = shouldBeOn;

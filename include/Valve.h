@@ -18,7 +18,7 @@ public:
 
   // Provides a wrapper for PWM updates and functions to read the latest duty cycles
   void UpdatePWM(float pidOutput);
-  void update();
+  void update() const;
   uint8_t getLastExtendDuty() const;
   uint8_t getLastRetractDuty() const;
 };

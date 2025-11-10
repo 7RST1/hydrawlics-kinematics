@@ -25,7 +25,7 @@ LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
 
 // --- Pump relay (state) ---
 constexpr uint8_t PUMP_PIN = 30; // dedicated pump relay pin
-inline void pumpWrite(bool on) {
+inline void pumpWrite(const bool on) {
   if (RELAY_ACTIVE_LOW) digitalWrite(PUMP_PIN, on ? LOW : HIGH);
   else                  digitalWrite(PUMP_PIN, on ? HIGH : LOW);
 }
@@ -138,15 +138,15 @@ void loop() {
   static unsigned long tLCD = 0;
   if (millis() - tLCD > 200) {
     tLCD = millis();
-    float cur = joints[0]->getCurrentAngleDeg();
-    float tar = joints[0]->getTargetAngleDeg();
+    const float cur = joints[0]->getCurrentAngleDeg();
+    const float tar = joints[0]->getTargetAngleDeg();
 #ifdef VERBOSE
     Serial.print("cur:");
     Serial.println(cur);
 #endif
-    lcdClearLine(0); lcd.print("C:"); printFloatOrDash(cur,1); lcd.write(byte(DEG_CHAR));
+    lcdClearLine(0); lcd.print("C:"); printFloatOrDash(cur,1); lcd.write(DEG_CHAR);
     lcd.setCursor(9,0); lcd.print("p:"); lcd.print(joints[0]->getLastPID());
-    lcdClearLine(1); lcd.print("T:"); printFloatOrDash(tar,1); lcd.write(byte(DEG_CHAR));
+    lcdClearLine(1); lcd.print("T:"); printFloatOrDash(tar,1); lcd.write(DEG_CHAR);
     lcd.setCursor(9,1); lcd.print("P:"); lcd.print(pumpMgr.isOn() ? '1' : '0');
   }
 }
@@ -154,14 +154,6 @@ void loop() {
 //  updateValves()
 //  Called once per loop to update the joint logic and pump state.
 void updateValves() {
-  static int count = 0;
-  static float lastupdate = 0;
-  /*if (millis() - lastupdate > 2000) {
-    count = (count + 10) % 110;
-    lastupdate = millis();
-    Serial.println(count);
-  }
-*/
   bool demand = false;
   for (Joint* j : joints) {
     j->update();
@@ -253,6 +245,6 @@ void processCommandQueue() {
 //  calculateChecksum()
 //  Returns simple XOR checksum for serial confirmation.
 uint8_t calculateChecksum(String &line) {
-  uint8_t checksum = 0; for (int i=0;i<line.length();i++) checksum ^= (uint8_t)line[i];
+  uint8_t checksum = 0; for (int i=0;i<line.length();i++) checksum ^= static_cast<uint8_t>(line[i]);
   return checksum;
 }
