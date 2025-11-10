@@ -113,6 +113,8 @@ public:
     JointAngles moveToDrawingSpace(const Vector3& gCodePos);
     JointAngles moveToWorldSpace(const Vector3& worldPos);
 
+    bool isAtTarget();
+
     // State getters
     Vector3 getCurrentPosition() const { return currentPosition; }
     void setCurrentPosition(const Vector3& pos) { currentPosition = pos; }
@@ -146,7 +148,7 @@ private:
     Vector3 translateToWorldSpace(const Vector3& gCodePos);
 
     // Utility
-    void debugLog(const String& message);
+    void debugLog(const String& message) const;
     float parseFloat(const String& str, bool& success);
     String floatToString(float value, int decimals);
 };

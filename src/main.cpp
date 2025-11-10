@@ -17,6 +17,8 @@
 
 #include "Joint.h"
 #include "PumpManager.h"
+#include "ArmController.h"
+#include "GCodeCommandQueue.h"
 
 #define LCD_ADDR 0x27 // LCD setup
 LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
@@ -38,9 +40,12 @@ byte degreeGlyph[8] = {
 // Forward declarations
 void updateValves();
 void serialRead();
+void processCommandQueue();
 uint8_t calculateChecksum(String &line);
 
 PumpManager pumpMgr;
+ArmController armController;
+GCodeCommandQueue gcodeQueue;
 
 //  Instances
 //  Only one joint is active in this prototype.
@@ -107,7 +112,10 @@ void setup() {
 
 //  Loop() - Equivalent to Update() in Unity
 void loop() {
+  // processes incoming serial communication from the python script running on Raspberry Pi and enqueues into gcodequeue
   serialRead();
+  // runs next gcode command in queue if the one executing currently is within tolerances
+  processCommandQueue();
   updateValves();
 
   // LCD feedback
@@ -146,21 +154,60 @@ void updateValves() {
   pumpMgr.update(demand);
 }
 
-//  Serial Communication
-//  Command format:
-//     A,<deg>  → set target angle for J2
+//  Serial Communication with GCode Queue
+//  Protocol: P sends 1 line → A responds "OK <checksum>"
+//  When queue < 5, A sends "Ready" to continue
 void serialRead() {
-  if (!Serial.available()) return;
-  String line = Serial.readStringUntil('\n'); line.trim();
+  static bool lastSentReady = false;
 
-  if (line.startsWith("A,")) {
-    float deg = line.substring(2).toFloat();
-    joints[0]->setTargetAngle(deg);
-    Serial.print("OK TargetAngle="); Serial.println(deg,1);
-    return;
+  // Check if we should send Ready signal
+  if (gcodeQueue.shouldSendReady() && !lastSentReady) {
+    Serial.println("Ready");
+    lastSentReady = true;
+  } else if (!gcodeQueue.shouldSendReady()) {
+    lastSentReady = false;
   }
 
-  Serial.print("OK "); Serial.println(calculateChecksum(line));
+  // Read one line at a time
+  if (Serial.available()) {
+    String line = Serial.readStringUntil('\n');
+    line.trim();
+
+    if (line.length() == 0) return;
+
+    // Parse and enqueue GCode command
+    GCodeCommand cmd;
+    if (armController.parseGCodeLine(line, cmd)) {
+      if (gcodeQueue.enqueue(cmd)) {
+        Serial.print("OK ");
+        Serial.println(calculateChecksum(line));
+      } else {
+        Serial.println("ERR Queue Full");
+      }
+    } else {
+      Serial.println("ERR Invalid GCode");
+    }
+  }
+}
+
+//  Process commands from the queue
+void processCommandQueue() {
+  if (!gcodeQueue.isEmpty() && armController.isAtTarget()) {
+    GCodeCommand cmd;
+    if (gcodeQueue.dequeue(cmd)) {
+      armController.processGCodeCommand(cmd);
+
+      #ifdef VERBOSE
+      Serial.print("Processed: ");
+      Serial.print(cmd.commandType);
+      if (cmd.hasX) { Serial.print(" X"); Serial.print(cmd.x); }
+      if (cmd.hasY) { Serial.print(" Y"); Serial.print(cmd.y); }
+      if (cmd.hasZ) { Serial.print(" Z"); Serial.print(cmd.z); }
+      Serial.print(" | Queue: ");
+      Serial.println(gcodeQueue.count());
+      #endif
+    }
+  }
 }
 
 //  calculateChecksum()

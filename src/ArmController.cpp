@@ -104,7 +104,7 @@ void ArmController::setAbsoluteMode(bool absolute) {
                        "Switched to relative positioning mode (G91)");
 }
 
-void ArmController::debugLog(const String& message) {
+void ArmController::debugLog(const String& message) const {
     if (debugEnabled) {
         Serial.println(message);
     }
@@ -384,4 +384,9 @@ JointAngles ArmController::moveToDrawingSpace(const Vector3& gCodePos) {
 
 JointAngles ArmController::moveToWorldSpace(const Vector3& worldPos) {
     return calculateJointAngles(worldPos);
+}
+
+bool ArmController::isAtTarget() {
+    // Loop through all joints and check that they are withing tolerances
+
 }
