@@ -54,17 +54,17 @@ Joint j0({
   0.151, 90   // end distance and angle
 });
 Joint j1({
-  10, 11, A4,
+  24, 25, A4,
   0.050, -90,   // base distance and angle
   0.151, 90   // end distance and angle
 });
 Joint j2({
-  12, 13, A5,
+  26, 27, A5,
   0.050, -90,   // base distance and angle
   0.151, 90   // end distance and angle
 });
 Joint j3({
-  14, 15, A6,
+  28, 29, A6,
   0.050, -90,   // base distance and angle
   0.151, 90   // end distance and angle
 });
