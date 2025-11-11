@@ -62,7 +62,7 @@ private:
   float mapAdcToDeg(int adc) const;
 
 public:
-  Joint(const JointConfig &config);
+  explicit Joint(const JointConfig &config);
 
   // Equivalent to Update() in Unity
   // Reads the potentiometer angle, compares it to the target angle,

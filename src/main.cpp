@@ -1,6 +1,3 @@
-//String TEST_LINE = String("");
-//#define VERBOSE
-
 // =====================================================================
 //  HYDRAWLICS - JOINT & VALVE CONTROL SYSTEM
 //  Hardware implementation matching the Unity simulation structure.
@@ -20,15 +17,41 @@
 #include "ArmController.h"
 #include "GCodeCommandQueue.h"
 
-#define LCD_ADDR 0x27 // LCD setup
-LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
+// --- I/O declerations ---
+constexpr uint8_t LCD_ADDR = 0x27; // LCD setup
 
-// --- Pump relay (state) ---
 constexpr uint8_t PUMP_PIN = 30; // dedicated pump relay pin
-inline void pumpWrite(const bool on) {
-  if (RELAY_ACTIVE_LOW) digitalWrite(PUMP_PIN, on ? LOW : HIGH);
-  else                  digitalWrite(PUMP_PIN, on ? HIGH : LOW);
-}
+
+// Joint 0 pins
+constexpr uint8_t J0_VALVE_EXTEND = 22;
+constexpr uint8_t J0_VALVE_RETRACT = 23;
+constexpr uint8_t J0_POTMETER = A3;
+
+// Joint 1 pins
+constexpr uint8_t J1_VALVE_EXTEND = 24;
+constexpr uint8_t J1_VALVE_RETRACT = 25;
+constexpr uint8_t J1_POTMETER = A4;
+
+// Joint 2 pins
+constexpr uint8_t J2_VALVE_EXTEND = 26;
+constexpr uint8_t J2_VALVE_RETRACT = 27;
+constexpr uint8_t J2_POTMETER = A5;
+
+// Joint 3 pins
+constexpr uint8_t J3_VALVE_EXTEND = 28;
+constexpr uint8_t J3_VALVE_RETRACT = 29;
+constexpr uint8_t J3_POTMETER = A6;
+
+
+// Forward declarations
+void updateValves();
+void serialRead();
+void processCommandQueue();
+uint8_t calculateChecksum(String &line);
+void selfTestOnce();
+void lcdClearLine(uint8_t row);
+void printFloatOrDash(float v, uint8_t d);
+void lcdFeedback();
 
 // --- Custom degree symbol for LCD ---
 const uint8_t DEG_CHAR = 0;
@@ -37,78 +60,41 @@ byte degreeGlyph[8] = {
   B00000,B00000,B00000,B00000
 };
 
-// Forward declarations
-void updateValves();
-void serialRead();
-void processCommandQueue();
-uint8_t calculateChecksum(String &line);
-
 PumpManager pumpMgr;
 GCodeCommandQueue gcodeQueue;
+LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
+
+// --- Pump relay (state) ---
+inline void pumpWrite(const bool on) {
+  if (RELAY_ACTIVE_LOW) digitalWrite(PUMP_PIN, on ? LOW : HIGH);
+  else                  digitalWrite(PUMP_PIN, on ? HIGH : LOW);
+}
 
 //  Instances
 //  Only one joint is active in this prototype.
 Joint j0({
-  22, 23, A3,
+  J0_VALVE_EXTEND, J0_VALVE_RETRACT, J0_POTMETER,
   0.050, -90,   // base distance and angle
   0.151, 90   // end distance and angle
 });
 Joint j1({
-  24, 25, A4,
+  J1_VALVE_EXTEND, J1_VALVE_RETRACT, J1_POTMETER,
   0.050, -90,   // base distance and angle
   0.151, 90   // end distance and angle
 });
 Joint j2({
-  26, 27, A5,
+  J2_VALVE_EXTEND, J2_VALVE_RETRACT, J2_POTMETER,
   0.050, -90,   // base distance and angle
   0.151, 90   // end distance and angle
 });
 Joint j3({
-  28, 29, A6,
+  J3_VALVE_EXTEND, J3_VALVE_RETRACT, J3_POTMETER,
   0.050, -90,   // base distance and angle
   0.151, 90   // end distance and angle
 });
 Joint* joints[] = { &j0, &j1, &j2, &j3 };
 ArmController armController(&j0, &j1, &j2, &j3);
 
-
-//  LCD for visuals
-void lcdClearLine(uint8_t row) { lcd.setCursor(0,row); for (int i=0;i<16;i++) lcd.print(' '); lcd.setCursor(0,row); }
-void printFloatOrDash(float v, uint8_t d){ if (isnan(v)||isinf(v)) lcd.print("--"); else lcd.print(v,d); }
-
-//  Self-Test
-//  Verifies relay polarity and pin wiring at startup.
-void selfTestOnce() {
-#if SELFTEST_ON_START
-  lcd.clear();
-  lcd.setCursor(0,0); lcd.print("Hydrawlics");
-  lcd.setCursor(0,1); lcd.print("Pump+Valves check");
-
-  pinMode(22, OUTPUT); pinMode(23, OUTPUT);
-
-  // EXTEND
-  if (RELAY_ACTIVE_LOW){ digitalWrite(22, LOW);  digitalWrite(23, HIGH); }
-  else                 { digitalWrite(22, HIGH); digitalWrite(23, LOW);  }
-  delay(1000);
-
-  // OFF
-  if (RELAY_ACTIVE_LOW){ digitalWrite(22, HIGH); digitalWrite(23, HIGH); }
-  else                 { digitalWrite(22, LOW);  digitalWrite(23, LOW);  }
-  delay(600);
-
-  // RETRACT
-  if (RELAY_ACTIVE_LOW){ digitalWrite(22, HIGH); digitalWrite(23, LOW); }
-  else                 { digitalWrite(22, LOW);  digitalWrite(23, HIGH); }
-  delay(1000);
-
-  // OFF
-  if (RELAY_ACTIVE_LOW){ digitalWrite(22, HIGH); digitalWrite(23, HIGH); }
-  else                 { digitalWrite(22, LOW);  digitalWrite(23, LOW);  }
-  delay(600);
-
-  lcd.clear();
-#endif
-}
 
 //  Setup() - Equivalent to Start() in Unity
 void setup() {
@@ -134,7 +120,12 @@ void loop() {
   processCommandQueue();
   updateValves();
 
-  // LCD feedback
+  lcdFeedback();
+}
+
+
+
+void lcdFeedback () {
   static unsigned long tLCD = 0;
   if (millis() - tLCD > 200) {
     tLCD = millis();
@@ -247,4 +238,42 @@ void processCommandQueue() {
 uint8_t calculateChecksum(String &line) {
   uint8_t checksum = 0; for (int i=0;i<line.length();i++) checksum ^= static_cast<uint8_t>(line[i]);
   return checksum;
+}
+
+//  LCD for visuals
+void lcdClearLine(uint8_t row) { lcd.setCursor(0,row); for (int i=0;i<16;i++) lcd.print(' '); lcd.setCursor(0,row); }
+void printFloatOrDash(float v, uint8_t d){ if (isnan(v)||isinf(v)) lcd.print("--"); else lcd.print(v,d); }
+
+//  Self-Test
+//  Verifies relay polarity and pin wiring at startup.
+void selfTestOnce() {
+#if SELFTEST_ON_START
+  lcd.clear();
+  lcd.setCursor(0,0); lcd.print("Hydrawlics");
+  lcd.setCursor(0,1); lcd.print("Pump+Valves check");
+
+  pinMode(J0_VALVE_EXTEND, OUTPUT); pinMode(J0_VALVE_RETRACT, OUTPUT);
+
+  // EXTEND
+  if (RELAY_ACTIVE_LOW){ digitalWrite(J0_VALVE_EXTEND, LOW);  digitalWrite(J0_VALVE_RETRACT, HIGH); }
+  else                 { digitalWrite(J0_VALVE_EXTEND, HIGH); digitalWrite(J0_VALVE_RETRACT, LOW);  }
+  delay(1000);
+
+  // OFF
+  if (RELAY_ACTIVE_LOW){ digitalWrite(J0_VALVE_EXTEND, HIGH); digitalWrite(J0_VALVE_RETRACT, HIGH); }
+  else                 { digitalWrite(J0_VALVE_EXTEND, LOW);  digitalWrite(J0_VALVE_RETRACT, LOW);  }
+  delay(600);
+
+  // RETRACT
+  if (RELAY_ACTIVE_LOW){ digitalWrite(J0_VALVE_EXTEND, HIGH); digitalWrite(J0_VALVE_RETRACT, LOW); }
+  else                 { digitalWrite(J0_VALVE_EXTEND, LOW);  digitalWrite(J0_VALVE_RETRACT, HIGH); }
+  delay(1000);
+
+  // OFF
+  if (RELAY_ACTIVE_LOW){ digitalWrite(J0_VALVE_EXTEND, HIGH); digitalWrite(J0_VALVE_RETRACT, HIGH); }
+  else                 { digitalWrite(J0_VALVE_EXTEND, LOW);  digitalWrite(J0_VALVE_RETRACT, LOW);  }
+  delay(600);
+
+  lcd.clear();
+#endif
 }
