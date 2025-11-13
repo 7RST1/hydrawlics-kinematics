@@ -158,7 +158,7 @@ void updateValves() {
 //#define TIMEOUT_READY
 
 //  Serial Communication with GCode Queue
-//  Protocol: P sends 1 line → A responds "OK <checksum>"
+//  Protocol: P sends 1 line, then A responds "OK <checksum>"
 //  When queue < 5, A sends "Ready" to continue
 void serialRead() {
   static bool lastSentReady = false;
@@ -210,6 +210,8 @@ void serialRead() {
         Serial.println(calculateChecksum(line));
         break;
     }
+    // last sent was error or OK
+    lastSentReady = false;
   }
 }
 
