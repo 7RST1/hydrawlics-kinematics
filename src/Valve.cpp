@@ -1,16 +1,16 @@
 #include "Valve.h"
 
-Valve::Valve(uint8_t _pin_e, uint8_t _pin_r) {
+Valve::Valve(const uint8_t _pin_e, const uint8_t _pin_r) {
   // Create PWM controllers for both directions
   v_e = new LowFreqPWM(_pin_e, 1.0, 5.0); // 1Hz PWM, 5Hz max action rate
   v_r = new LowFreqPWM(_pin_r, 1.0, 5.0);
 }
 
 // move ∈ [-1, 1]  (− = retract, + = extend, 0 = hold)
-void Valve::updatePWMs(float move) {
-  Serial.println(move);
-  float normalized = constrain(move, -1.0, 1.0);
-  uint8_t dc = (uint8_t)(fabsf(normalized) * 100.0f);
+void Valve::updatePWMs(const float move) {
+  //Serial.println(move);
+  const float normalized = constrain(move, -1.0, 1.0);
+  const auto dc = static_cast<uint8_t>((fabsf(normalized) * 100.0f));
 
   if (normalized < 0) {             // RETRACT
     v_e->setDutyCycle(0);
@@ -27,11 +27,11 @@ void Valve::updatePWMs(float move) {
   }
 }
 
-void Valve::UpdatePWM(float pidOutput) {
+void Valve::UpdatePWM(const float pidOutput) {
   updatePWMs(pidOutput);
 }
 
-void Valve::update() {
+void Valve::update() const {
   v_e->update();
   v_r->update();
 }

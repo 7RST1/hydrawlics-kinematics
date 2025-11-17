@@ -1,6 +1,8 @@
 #ifndef ARM_CONTROLLER_H
 #define ARM_CONTROLLER_H
 
+#include "Joint.h"
+
 #ifdef NATIVE_TEST
     // Native testing mode - use standard C++ libraries
     #include <string>
@@ -70,14 +72,13 @@ struct GCodeCommand {
     float x;
     float y;
     float z;
-    float feedRate;
 
     GCodeCommand() : hasX(false), hasY(false), hasZ(false), hasFeedRate(false),
-                     x(0), y(0), z(0), feedRate(0) {}
+                     x(0), y(0), z(0) {}
 
-    GCodeCommand(const String& type) : commandType(type), hasX(false), hasY(false),
-                                       hasZ(false), hasFeedRate(false),
-                                       x(0), y(0), z(0), feedRate(0) {}
+    explicit GCodeCommand(const String& type) : commandType(type), hasX(false), hasY(false),
+                                                hasZ(false), hasFeedRate(false),
+                                                x(0), y(0), z(0) {}
 };
 
 // Result structure for joint angles
@@ -92,26 +93,39 @@ struct JointAngles {
                     joint3Angle(0), valid(false) {}
 };
 
+enum class GCodeParseResult {
+    Success,        // Valid movement command parsed
+    EmptyLine,      // Nothing to parse (benign)
+    ModeChange,     // G90/G91 handled (benign)
+    InvalidCommand  // Actual parsing error
+};
+
 class ArmController {
 public:
     // Constructor
-    ArmController();
+    ArmController(Joint* j0, Joint* j1, Joint* j2, Joint* j3);
 
     // Configuration
     void setArmDimensions(float a1, float a2, float a3, float endEffectorLength);
-    void setDrawingSpaceOffset(Vector3 offset);
+    void setDrawingSpaceOffset(const Vector3 &offset);
     void setJointAngleTolerance(float tolerance);
 
+#ifndef NATIVE_TEST
+    // Joint management (Arduino only)
+    void applyJointAngles(const JointAngles& angles);
+    bool isAtTarget() const;
+#endif
+
     // G-Code processing
-    bool parseGCodeLine(const String& line, GCodeCommand& outCommand);
+    GCodeParseResult parseGCodeLine(const String& line, GCodeCommand& outCommand);
     void processGCodeCommand(const GCodeCommand& cmd);
     void setAbsoluteMode(bool absolute);
     bool isAbsoluteMode() const { return absoluteMode; }
 
     // Movement functions
-    JointAngles calculateJointAngles(const Vector3& position);
-    JointAngles moveToDrawingSpace(const Vector3& gCodePos);
-    JointAngles moveToWorldSpace(const Vector3& worldPos);
+    JointAngles calculateJointAngles(const Vector3& position) const;
+    JointAngles moveToDrawingSpace(const Vector3& gCodePos) const;
+    JointAngles moveToWorldSpace(const Vector3& worldPos) const;
 
     // State getters
     Vector3 getCurrentPosition() const { return currentPosition; }
@@ -127,6 +141,9 @@ private:
     float a3;  // Length of second arm segment
     float endEffectorMagnitude;  // Length of end effector
 
+    float inputValueMultiplier = 1; // for translation from millimeters and such
+    // default expected input is meters, hence 1
+
     // Drawing space configuration
     Vector3 drawSpaceOffset;
 
@@ -140,15 +157,24 @@ private:
     // Debug
     bool debugEnabled;
 
+#ifndef NATIVE_TEST
+    // Joint management (Arduino only)
+    Joint* j0;
+    Joint* j1;
+    Joint* j2;
+    Joint* j3;
+    JointAngles targetAngles;
+#endif
+
     // Helper functions
-    JointAngles calculateInverseKinematics(const Vector3& endEffectorOriginPos);
-    Vector3 adjustForEndEffector(const Vector3& tipPosition, const Vector3& basePosition);
-    Vector3 translateToWorldSpace(const Vector3& gCodePos);
+    JointAngles calculateInverseKinematics(const Vector3& endEffectorOriginPos) const;
+    Vector3 adjustForEndEffector(const Vector3& tipPosition, const Vector3& basePosition) const;
+    Vector3 translateToWorldSpace(const Vector3& gCodePos) const;
 
     // Utility
-    void debugLog(const String& message);
-    float parseFloat(const String& str, bool& success);
-    String floatToString(float value, int decimals);
+    void debugLog(const String& message) const;
+    static float parseFloat(const String& str, bool& success);
+    static String floatToString(float value, int decimals);
 };
 
 #endif // ARM_CONTROLLER_H

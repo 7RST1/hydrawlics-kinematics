@@ -58,11 +58,11 @@ private:
 
   long lastUpdate = 0;
 
-  float calculatePistonLength(float jointAngle);
+  float calculatePistonLength(float jointAngle) const;
   float mapAdcToDeg(int adc) const;
 
 public:
-  Joint(JointConfig config);
+  explicit Joint(const JointConfig &config);
 
   // Equivalent to Update() in Unity
   // Reads the potentiometer angle, compares it to the target angle,
@@ -79,6 +79,8 @@ public:
   uint8_t getExtendDuty() const;
   uint8_t getRetractDuty() const;
   float getLastPID() const;
+
+  bool isAtTarget(float degreeTolerance) const;
 };
 
 #endif // JOINT_H

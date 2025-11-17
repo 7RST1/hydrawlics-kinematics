@@ -4,7 +4,7 @@
 constexpr float DegToRad = M_PI / 180;
 constexpr float RadToDeg = 180 / M_PI;
 
-Joint::Joint(JointConfig config) {
+Joint::Joint(const JointConfig &config) {
   v = new Valve(config.pin_valve_e, config.pin_valve_r);
   pin_potmeter = config.pin_potmeter;
 
@@ -20,7 +20,7 @@ Joint::Joint(JointConfig config) {
   targetAngleDeg = (angle_min_deg + angle_max_deg) * 0.5f; // Start mid position
 }
 
-float Joint::calculatePistonLength(float jointAngle) {
+float Joint::calculatePistonLength(const float jointAngle) const {
   // Calculate the angle in the triangle at the joint pivot
   // pistonBaseAngleInParentSpace: angle to base attachment (in parent's space, doesn't change with joint rotation)
   // pistonEndAngle: angle to end attachment (in joint's local space)
@@ -28,14 +28,14 @@ float Joint::calculatePistonLength(float jointAngle) {
 
   // The end attachment's angle in parent space is: pistonEndAngle + jointAngle
   // The triangle angle at the joint is the difference between the two attachment angles
-  float triangleAngle = (pistonEndAngle + jointAngle) - pistonBaseAngleInParentSpace;
-  float triangleAngleRad = triangleAngle * DegToRad;
+  const float triangleAngle = (pistonEndAngle + jointAngle) - pistonBaseAngleInParentSpace;
+  const float triangleAngleRad = triangleAngle * DegToRad;
 
   // Use law of cosines: c² = a² + b² - 2ab*cos(C)
   // where c is the piston length, a and b are the attachment distances
   //Debug.Log(_pistonBaseDistance +" "+ _pistonEndDistance);
 
-  float length = sqrt(
+  const float length = sqrt(
       pistonBaseDistance * pistonBaseDistance +
       pistonEndDistance * pistonEndDistance -
       2 * pistonBaseDistance * pistonEndDistance * cos(triangleAngleRad)
@@ -44,8 +44,8 @@ float Joint::calculatePistonLength(float jointAngle) {
   return constrain(length, minPistonLength, maxPistonLength);
 }
 
-float Joint::mapAdcToDeg(int adc) const {
-  float deg = m_deg_per_adc * adc + b_deg_offset;
+float Joint::mapAdcToDeg(const int adc) const {
+  const float deg = m_deg_per_adc * adc + b_deg_offset;
   return constrain(deg, angle_min_deg, angle_max_deg);
 }
 
@@ -53,39 +53,41 @@ float Joint::mapAdcToDeg(int adc) const {
 // Reads the potentiometer angle, compares it to the target angle,
 // and adjusts valve outputs using proportional control with a 0.5° deadband
 void Joint::update() {
-  long deltaTime = millis() - lastUpdate;
+  const long deltaTime = millis() - lastUpdate;
 
   // --- Step 1: Read current angle from potentiometer ---
-  int adc = analogRead(pin_potmeter);
+  const int adc = analogRead(pin_potmeter);
   currentAngleDeg = mapAdcToDeg(adc);
   //currentAngleDeg = -110;
+#ifdef VERBOSE
   Serial.print("currentAngle:");
   Serial.print(currentAngleDeg);
   Serial.print(" targetAngle:");
   Serial.println(targetAngleDeg);
+#endif
 
   // --- Step 2: Calculate target piston length for desired angle ---
-  float targetLength = calculatePistonLength(targetAngleDeg);
-  float currentPistonLength = calculatePistonLength(currentAngleDeg);
+  const float targetLength = calculatePistonLength(targetAngleDeg);
+  const float currentPistonLength = calculatePistonLength(currentAngleDeg);
 
   // PID control to get desired piston velocity
   float error = targetLength - currentPistonLength;
 
   // Deadband: reset integral when very close to target (prevents lingering)
-  const float deadband = 0.001f; // 1mm tolerance
+  constexpr float deadband = 0.001f; // 1mm tolerance
   if (abs(error) < deadband) {
       integralError = 0;
       error = 0; // Stop control signal completely within deadband
   }
 
-  float derivative = (error - previousError) / deltaTime;
+  const float derivative = (error - previousError) / deltaTime;
 
   float pidOutput = kP * error + kI * integralError + kD * derivative;
 
   // Anti-windup: integrate if not saturated, OR if integrating would reduce saturation
-  bool saturatedHigh = pidOutput > 1.0;
-  bool saturatedLow = pidOutput < -1.0;
-  bool shouldIntegrate = (!saturatedHigh && !saturatedLow) ||
+  const bool saturatedHigh = pidOutput > 1.0;
+  const bool saturatedLow = pidOutput < -1.0;
+  const bool shouldIntegrate = (!saturatedHigh && !saturatedLow) ||
                          (saturatedHigh && error < 0) ||
                          (saturatedLow && error > 0);
 
@@ -98,6 +100,7 @@ void Joint::update() {
 
   lastPID = pidOutput;
 
+#ifdef VERBOSE
   Serial.print("pid:");
   Serial.println(pidOutput);
   Serial.print("integral:");
@@ -106,6 +109,7 @@ void Joint::update() {
   Serial.println(currentPistonLength, 6);
   Serial.print("targetLength: ");
   Serial.println(targetLength, 6);
+#endif
   previousError = error;
 
   lastUpdate = millis();
@@ -121,7 +125,7 @@ void Joint::resetToInit() {
 }
 
 // Accessors for current state and control values
-void Joint::setTargetAngle(float deg) {
+void Joint::setTargetAngle(const float deg) {
   targetAngleDeg = constrain(deg, angle_min_deg, angle_max_deg);
 }
 
@@ -143,4 +147,9 @@ uint8_t Joint::getRetractDuty() const {
 
 float Joint::getLastPID() const {
   return lastPID;
+}
+
+bool Joint::isAtTarget(const float degreeTolerance) const {
+  const float angleDiff = abs(targetAngleDeg - currentAngleDeg);
+  return angleDiff <= degreeTolerance;
 }

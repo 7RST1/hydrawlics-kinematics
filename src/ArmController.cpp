@@ -1,5 +1,7 @@
 #include "ArmController.h"
 
+#include "Joint.h"
+
 #ifdef NATIVE_TEST
     #include <algorithm>
     #include <sstream>
@@ -8,6 +10,7 @@
 #endif
 
 // Helper functions for string manipulation - work with both Arduino String and std::string
+// NATIVE_TEST is defined in the platformio.ini file, see build-flags..
 namespace {
     void stringToUpper(String& str) {
 #ifdef NATIVE_TEST
@@ -66,7 +69,7 @@ namespace {
     }
 }
 
-ArmController::ArmController() {
+ArmController::ArmController(Joint* j0, Joint* j1, Joint* j2, Joint* j3): j0(j0), j1(j1), j2(j2), j3(j3) {
     // Default arm dimensions from Unity simulation (in meters)
     a1 = 0.098f;
     a2 = 0.270f;
@@ -83,28 +86,28 @@ ArmController::ArmController() {
     debugEnabled = false;
 }
 
-void ArmController::setArmDimensions(float _a1, float _a2, float _a3, float _endEffectorLength) {
+void ArmController::setArmDimensions(const float _a1, const float _a2, const float _a3, const float _endEffectorLength) {
     a1 = _a1;
     a2 = _a2;
     a3 = _a3;
     endEffectorMagnitude = _endEffectorLength;
 }
 
-void ArmController::setDrawingSpaceOffset(Vector3 offset) {
+void ArmController::setDrawingSpaceOffset(const Vector3 &offset) {
     drawSpaceOffset = offset;
 }
 
-void ArmController::setJointAngleTolerance(float tolerance) {
+void ArmController::setJointAngleTolerance(const float tolerance) {
     jointAngleTolerance = tolerance;
 }
 
-void ArmController::setAbsoluteMode(bool absolute) {
+void ArmController::setAbsoluteMode(const bool absolute) {
     absoluteMode = absolute;
     debugLog(absolute ? "Switched to absolute positioning mode (G90)" :
                        "Switched to relative positioning mode (G91)");
 }
 
-void ArmController::debugLog(const String& message) {
+void ArmController::debugLog(const String& message) const {
     if (debugEnabled) {
         Serial.println(message);
     }
@@ -142,21 +145,21 @@ float ArmController::parseFloat(const String& str, bool& success) {
     return success ? atof(str.c_str()) : 0.0f;
 }
 
-bool ArmController::parseGCodeLine(const String& line, GCodeCommand& outCommand) {
+GCodeParseResult ArmController::parseGCodeLine(const String& line, GCodeCommand& outCommand) {
     // Remove comments (everything after semicolon)
-    int commentPos = stringFind(line, ';');
+    const int commentPos = stringFind(line, ';');
     String cleanLine = (commentPos >= 0) ? stringSubstr(line, 0, commentPos) : line;
     stringTrim(cleanLine);
 
-    if (cleanLine.length() == 0) {
-        return false;
+    if (cleanLine.length() == 0 || cleanLine[0] == '(') {
+        return GCodeParseResult::EmptyLine;
     }
 
     // Split line into tokens (simple space-based tokenization)
     size_t tokenStart = 0;
     String tokens[10];  // Max 10 tokens per line
     int tokenCount = 0;
-    size_t lineLen = cleanLine.length();
+    const size_t lineLen = cleanLine.length();
 
     for (size_t i = 0; i <= lineLen && tokenCount < 10; i++) {
         if (i == lineLen || cleanLine[i] == ' ') {
@@ -168,7 +171,7 @@ bool ArmController::parseGCodeLine(const String& line, GCodeCommand& outCommand)
     }
 
     if (tokenCount == 0) {
-        return false;
+        return GCodeParseResult::EmptyLine;
     }
 
     String commandType = tokens[0];
@@ -177,15 +180,22 @@ bool ArmController::parseGCodeLine(const String& line, GCodeCommand& outCommand)
     // Handle mode changes
     if (commandType == "G90") {
         setAbsoluteMode(true);
-        return false;  // Not a movement command
+        return GCodeParseResult::ModeChange;  // Not a movement command
     } else if (commandType == "G91") {
         setAbsoluteMode(false);
-        return false;  // Not a movement command
+        return GCodeParseResult::ModeChange;  // Not a movement command
+    }
+
+    // Handle G21 (means use millimeter units, default is meters)
+    if (commandType == "G21") {
+        // if set, we need to multiply the inputs with 1000
+        inputValueMultiplier = 1000;
+        return GCodeParseResult::ModeChange;
     }
 
     // Only process movement commands (G00, G01, G02, G03)
     if (!stringStartsWith(commandType, "G0") && !stringStartsWith(commandType, "G1")) {
-        return false;
+        return GCodeParseResult::InvalidCommand;
     }
 
     outCommand = GCodeCommand(commandType);
@@ -197,12 +207,13 @@ bool ArmController::parseGCodeLine(const String& line, GCodeCommand& outCommand)
 
         if (token.length() < 2) continue;
 
-        char param = token[0];
+        const char param = token[0];
         String valueStr = stringSubstr(token, 1);
         bool success;
         float value = parseFloat(valueStr, success);
 
         if (success) {
+            value *= inputValueMultiplier;
             switch (param) {
                 case 'X':
                     outCommand.x = value;
@@ -216,9 +227,8 @@ bool ArmController::parseGCodeLine(const String& line, GCodeCommand& outCommand)
                     outCommand.z = value;
                     outCommand.hasZ = true;
                     break;
-                case 'F':
-                    outCommand.feedRate = value;
-                    outCommand.hasFeedRate = true;
+                default:
+                    //ignore everything else
                     break;
             }
         } else {
@@ -226,11 +236,11 @@ bool ArmController::parseGCodeLine(const String& line, GCodeCommand& outCommand)
         }
     }
 
-    return true;
+    return GCodeParseResult::Success;
 }
 
 void ArmController::processGCodeCommand(const GCodeCommand& cmd) {
-    // Calculate target position
+    // Calculate target position in GCode space
     Vector3 targetPos = currentPosition;
 
     if (absoluteMode) {
@@ -249,18 +259,30 @@ void ArmController::processGCodeCommand(const GCodeCommand& cmd) {
 
     debugLog("Executing " + cmd.commandType + " -> X:" + floatToString(targetPos.x, 3) +
              " Y:" + floatToString(targetPos.y, 3) + " Z:" + floatToString(targetPos.z, 3));
+
+#ifndef NATIVE_TEST
+    // Calculate inverse kinematics and apply to joints
+    JointAngles angles = moveToDrawingSpace(targetPos);
+
+    if (angles.valid) {
+        applyJointAngles(angles);
+        debugLog("IK Success - Angles applied to joints");
+    } else {
+        debugLog("IK Failed - Position unreachable");
+    }
+#endif
 }
 
-Vector3 ArmController::translateToWorldSpace(const Vector3& gCodePos) {
+Vector3 ArmController::translateToWorldSpace(const Vector3& gCodePos) const {
     // Coordinate translation from G-Code space to world space
     // Based on Unity implementation
-    Vector3 gCodeTranslated = Vector3(
+    const auto gCodeTranslated = Vector3(
         gCodePos.y,
         gCodePos.z,
         gCodePos.x * -1.0f
     );
 
-    Vector3 targetWorldPos = drawSpaceOffset + gCodeTranslated;
+    const Vector3 targetWorldPos = drawSpaceOffset + gCodeTranslated;
 
     debugLog("GCode: (" + floatToString(gCodePos.x, 3) + ", " + floatToString(gCodePos.y, 3) +
              ", " + floatToString(gCodePos.z, 3) + ") -> World: (" +
@@ -270,7 +292,7 @@ Vector3 ArmController::translateToWorldSpace(const Vector3& gCodePos) {
     return targetWorldPos;
 }
 
-Vector3 ArmController::adjustForEndEffector(const Vector3& tipPosition, const Vector3& basePosition) {
+Vector3 ArmController::adjustForEndEffector(const Vector3& tipPosition, const Vector3& basePosition) const {
     // Calculate the position of the end effector origin by removing the end effector vector
     debugLog("MoveTip - Input Position: (" + floatToString(tipPosition.x, 3) + ", " +
              floatToString(tipPosition.y, 3) + ", " + floatToString(tipPosition.z, 3) + ")");
@@ -283,9 +305,9 @@ Vector3 ArmController::adjustForEndEffector(const Vector3& tipPosition, const Ve
     debugLog("MoveTip - P_vector after zeroing Y: (" + floatToString(P_vector.x, 3) + ", " +
              floatToString(P_vector.y, 3) + ", " + floatToString(P_vector.z, 3) + ")");
 
-    Vector3 P_vector_normalized = P_vector.normalized();
-    Vector3 P_vector_normalized_scaled = P_vector_normalized * endEffectorMagnitude;
-    Vector3 endEffectorOriginPos = tipPosition - P_vector_normalized_scaled;
+    const Vector3 P_vector_normalized = P_vector.normalized();
+    const Vector3 P_vector_normalized_scaled = P_vector_normalized * endEffectorMagnitude;
+    const Vector3 endEffectorOriginPos = tipPosition - P_vector_normalized_scaled;
 
     debugLog("MoveTip - End Effector Origin: (" + floatToString(endEffectorOriginPos.x, 3) +
              ", " + floatToString(endEffectorOriginPos.y, 3) + ", " +
@@ -294,26 +316,26 @@ Vector3 ArmController::adjustForEndEffector(const Vector3& tipPosition, const Ve
     return endEffectorOriginPos;
 }
 
-JointAngles ArmController::calculateInverseKinematics(const Vector3& position) {
+JointAngles ArmController::calculateInverseKinematics(const Vector3& position) const {
     JointAngles result;
 
     // Renaming axis. Unity uses y up instead of z up. y and z are swapped.
-    float x_3 = position.x;
-    float y_3 = position.z;
-    float z_3 = position.y;
+    const float x_3 = position.x;
+    const float y_3 = position.z;
+    const float z_3 = position.y;
 
     debugLog("IK Input - x:" + floatToString(x_3, 3) + ", y:" + floatToString(y_3, 3) +
              ", z:" + floatToString(z_3, 3));
 
     // Calculate theta_1 (base rotation)
-    double theta_1_rad = M_PI + atan2(x_3, y_3);
+    const double theta_1_rad = M_PI + atan2(x_3, y_3);
 
     // Calculate r (distance in plane)
-    double r = sqrt(x_3 * x_3 + (z_3 - a1) * (z_3 - a1));
+    const double r = sqrt(x_3 * x_3 + (z_3 - a1) * (z_3 - a1));
 
     // Check if position is reachable
-    double maxReach = a2 + a3;
-    double minReach = abs(a2 - a3);
+    const double maxReach = a2 + a3;
+    const double minReach = abs(a2 - a3);
 
     if (r > maxReach || r < minReach) {
         debugLog("Position unreachable! r=" + floatToString(r, 3) +
@@ -324,22 +346,22 @@ JointAngles ArmController::calculateInverseKinematics(const Vector3& position) {
     }
 
     // Calculate phi angles using law of cosines
-    double phi_1_rad = acos((a2 * a2 + r * r - a3 * a3) / (2 * a2 * r));
-    double phi_2_rad = acos((a2 * a2 + a3 * a3 - r * r) / (2 * a2 * a3));
-    double phi_3_rad = atan((z_3 - a1) / x_3);
+    const double phi_1_rad = acos((a2 * a2 + r * r - a3 * a3) / (2 * a2 * r));
+    const double phi_2_rad = acos((a2 * a2 + a3 * a3 - r * r) / (2 * a2 * a3));
+    const double phi_3_rad = atan((z_3 - a1) / x_3);
 
     // Calculate theta angles
-    double theta_2_rad = phi_3_rad + phi_1_rad;
-    double theta_3_rad = phi_2_rad - M_PI;
+    const double theta_2_rad = phi_3_rad + phi_1_rad;
+    const double theta_3_rad = phi_2_rad - M_PI;
 
     // Convert to degrees
-    float phi_1 = (180.0f / M_PI) * phi_1_rad;
-    float phi_2 = (180.0f / M_PI) * phi_2_rad;
-    float phi_3 = (180.0f / M_PI) * phi_3_rad;
+    const float phi_1 = (180.0f / M_PI) * phi_1_rad;
+    const float phi_2 = (180.0f / M_PI) * phi_2_rad;
+    const float phi_3 = (180.0f / M_PI) * phi_3_rad;
 
-    float theta_1 = (180.0f / M_PI) * theta_1_rad;
-    float theta_2 = (180.0f / M_PI) * theta_2_rad;
-    float theta_3 = (180.0f / M_PI) * theta_3_rad;
+    const float theta_1 = (180.0f / M_PI) * theta_1_rad;
+    const float theta_2 = (180.0f / M_PI) * theta_2_rad;
+    const float theta_3 = (180.0f / M_PI) * theta_3_rad;
 
     // Store results (with Unity-specific adjustments)
     result.baseRotation = theta_1 + 90.0f;
@@ -356,17 +378,17 @@ JointAngles ArmController::calculateInverseKinematics(const Vector3& position) {
     return result;
 }
 
-JointAngles ArmController::calculateJointAngles(const Vector3& position) {
+JointAngles ArmController::calculateJointAngles(const Vector3& position) const {
     // Assumes position is already in world space and is the tip position
     // Adjust for end effector (assuming base is at origin for now)
-    Vector3 basePosition = Vector3(0, 0, 0);
-    Vector3 endEffectorOriginPos = adjustForEndEffector(position, basePosition);
+    const auto basePosition = Vector3(0, 0, 0);
+    const Vector3 endEffectorOriginPos = adjustForEndEffector(position, basePosition);
 
     // Calculate inverse kinematics
     return calculateInverseKinematics(endEffectorOriginPos);
 }
 
-JointAngles ArmController::moveToDrawingSpace(const Vector3& gCodePos) {
+JointAngles ArmController::moveToDrawingSpace(const Vector3& gCodePos) const {
     // Validate drawing space limits (from Unity simulation)
     if (gCodePos.x < 0 || gCodePos.x > 0.3264f) {
         debugLog("Warning: X out of drawing space range [0, 0.3264]");
@@ -376,12 +398,35 @@ JointAngles ArmController::moveToDrawingSpace(const Vector3& gCodePos) {
     }
 
     // Translate to world space
-    Vector3 targetWorldPos = translateToWorldSpace(gCodePos);
+    const Vector3 targetWorldPos = translateToWorldSpace(gCodePos);
 
     // Calculate joint angles
     return calculateJointAngles(targetWorldPos);
 }
 
-JointAngles ArmController::moveToWorldSpace(const Vector3& worldPos) {
+JointAngles ArmController::moveToWorldSpace(const Vector3& worldPos) const {
     return calculateJointAngles(worldPos);
 }
+
+#ifndef NATIVE_TEST
+bool ArmController::isAtTarget() const {
+    // Loop through all joints and check that they are withing tolerances
+    const bool everythingAit = j0->isAtTarget(jointAngleTolerance) &&
+        j1->isAtTarget(jointAngleTolerance) &&
+        j2->isAtTarget(jointAngleTolerance) &&
+        j3->isAtTarget(jointAngleTolerance);
+    return everythingAit;
+}
+
+void ArmController::applyJointAngles(const JointAngles& angles) {
+    // Store the target angles
+    targetAngles = angles;
+
+    // Apply to physical joints
+    j0->setTargetAngle(angles.baseRotation);
+    j1->setTargetAngle(angles.joint1Angle);
+    j2->setTargetAngle(angles.joint2Angle);
+    j3->setTargetAngle(angles.joint3Angle);
+}
+#endif
+
