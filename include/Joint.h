@@ -90,6 +90,9 @@ public:
   uint8_t getRetractDuty() const;
   float getLastPID() const;
 
+  // Configuration
+  void setOffsetToCurrentPhysicalRotation(float currentPhysicalRotation);
+
   bool isAtTarget(float degreeTolerance) const;
 };
 

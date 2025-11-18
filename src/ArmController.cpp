@@ -409,6 +409,17 @@ JointAngles ArmController::moveToWorldSpace(const Vector3& worldPos) const {
 }
 
 #ifndef NATIVE_TEST
+
+void ArmController::calibrateJoints() {
+    // Run through all the joints and set the offset to the correct thing given the current values of the joint
+
+    j0->setOffsetToCurrentPhysicalRotation(0);
+    j1->setOffsetToCurrentPhysicalRotation(0);
+    j2->setOffsetToCurrentPhysicalRotation(-90);
+    j3->setOffsetToCurrentPhysicalRotation(0);
+
+}
+
 bool ArmController::isAtTarget() const {
     // Loop through all joints and check that they are withing tolerances
     const bool everythingAit = j0->isAtTarget(jointAngleTolerance) &&
