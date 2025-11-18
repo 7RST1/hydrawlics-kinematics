@@ -6,7 +6,7 @@ constexpr float RadToDeg = 180 / M_PI;
 
 Joint::Joint(const JointConfig &config) {
   v = new Valve(config.pin_valve_e, config.pin_valve_r);
-  pin_potmeter = config.pin_potmeter;
+  re = new RotaryEncoder(config.multiplexI);
 
   /** The base attachment in parent segment space */
   pistonBaseDistance = config.pistonBaseDistance;
@@ -16,7 +16,14 @@ Joint::Joint(const JointConfig &config) {
   pistonEndDistance = config.pistonEndDistance;
   pistonEndAngle = config.pistonEndAngle;
 
-  pinMode(pin_potmeter, INPUT);
+  /** Piston length constraints */
+  minPistonLength = config.minPistonLength;
+  maxPistonLength = config.maxPistonLength;
+
+  /** Calculate angle boundaries from piston length constraints and geometry */
+  angle_min_deg = calculateJointAngle(minPistonLength);
+  angle_max_deg = calculateJointAngle(maxPistonLength);
+
   targetAngleDeg = (angle_min_deg + angle_max_deg) * 0.5f; // Start mid position
 }
 
@@ -44,21 +51,34 @@ float Joint::calculatePistonLength(const float jointAngle) const {
   return constrain(length, minPistonLength, maxPistonLength);
 }
 
-float Joint::mapAdcToDeg(const int adc) const {
-  const float deg = m_deg_per_adc * adc + b_deg_offset;
-  return constrain(deg, angle_min_deg, angle_max_deg);
+float Joint::calculateJointAngle(const float pistonLength) const {
+  // Use law of cosines to find the triangle angle: c² = a² + b² - 2ab*cos(C)
+  // Solving for C: cos(C) = (a² + b² - c²) / (2ab)
+  const float a = pistonBaseDistance;
+  const float b = pistonEndDistance;
+  const float c = pistonLength;
+
+  const float cosTriangleAngle = (a * a + b * b - c * c) / (2 * a * b);
+  const float triangleAngleRad = acos(cosTriangleAngle);
+  const float triangleAngle = triangleAngleRad * RadToDeg;
+
+  // Convert triangle angle back to joint angle
+  // triangleAngle = (pistonEndAngle + jointAngle) - pistonBaseAngleInParentSpace
+  // jointAngle = triangleAngle + pistonBaseAngleInParentSpace - pistonEndAngle
+  const float jointAngle = triangleAngle + pistonBaseAngleInParentSpace - pistonEndAngle;
+
+  return jointAngle;
 }
 
 // Equivalent to Update() in Unity
-// Reads the potentiometer angle, compares it to the target angle,
-// and adjusts valve outputs using proportional control with a 0.5° deadband
+// Reads the rotary encoder angle, compares it to the target angle,
+// and adjusts valve outputs using PID control with a deadband
 void Joint::update() {
   const long deltaTime = millis() - lastUpdate;
 
-  // --- Step 1: Read current angle from potentiometer ---
-  const int adc = analogRead(pin_potmeter);
-  currentAngleDeg = mapAdcToDeg(adc);
-  //currentAngleDeg = -110;
+  // --- Step 1: Read current angle from rotary encoder ---
+  currentAngleDeg = re->getAngleDeg();
+  currentAngleDeg = constrain(currentAngleDeg, angle_min_deg, angle_max_deg);
 #ifdef VERBOSE
   Serial.print("currentAngle:");
   Serial.print(currentAngleDeg);

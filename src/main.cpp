@@ -42,6 +42,11 @@ constexpr uint8_t J3_VALVE_EXTEND = 28;
 constexpr uint8_t J3_VALVE_RETRACT = 29;
 constexpr uint8_t J3_POTMETER = A6;
 
+// Piston Lengths (used in Joints to calculate angles)
+// the only piston type we have as of now
+// Others can be added below if we ever make different lengths
+constexpr float PISTON1_LEN_MIN = 0.1280;
+constexpr float PISTON1_LEN_MAX = 0.1657;
 
 // Forward declarations
 void updateValves();
@@ -74,23 +79,27 @@ inline void pumpWrite(const bool on) {
 //  Only one joint is active in this prototype.
 Joint j0({
   J0_VALVE_EXTEND, J0_VALVE_RETRACT, J0_POTMETER,
-  0.050, -90,   // base distance and angle
-  0.151, 90   // end distance and angle
+  0.050, -180,   // base distance and angle
+  0.151, 0,   // end distance and angle
+  PISTON1_LEN_MIN, PISTON1_LEN_MAX
 });
 Joint j1({
   J1_VALVE_EXTEND, J1_VALVE_RETRACT, J1_POTMETER,
-  0.050, -90,   // base distance and angle
-  0.151, 90   // end distance and angle
+  0.050, -180,   // base distance and angle
+  0.151, 0,   // end distance and angle
+  PISTON1_LEN_MIN, PISTON1_LEN_MAX
 });
 Joint j2({
   J2_VALVE_EXTEND, J2_VALVE_RETRACT, J2_POTMETER,
-  0.050, -90,   // base distance and angle
-  0.151, 90   // end distance and angle
+  0.050, -180,   // base distance and angle
+  0.151, 0,   // end distance and angle
+  PISTON1_LEN_MIN, PISTON1_LEN_MAX
 });
 Joint j3({
   J3_VALVE_EXTEND, J3_VALVE_RETRACT, J3_POTMETER,
-  0.050, -90,   // base distance and angle
-  0.151, 90   // end distance and angle
+  0.050, -180,   // base distance and angle
+  0.151, 0,   // end distance and angle
+  PISTON1_LEN_MIN, PISTON1_LEN_MAX
 });
 Joint* joints[] = { &j0, &j1, &j2, &j3 };
 ArmController armController(&j0, &j1, &j2, &j3);
