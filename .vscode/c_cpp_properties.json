@@ -1,15 +1,57 @@
+//
+// !!! WARNING !!! AUTO-GENERATED FILE!
+// PLEASE DO NOT MODIFY IT AND USE "platformio.ini":
+// https://docs.platformio.org/page/projectconf/section_env_build.html#build-flags
+//
 {
     "configurations": [
         {
-            "name": "Linux",
+            "name": "PlatformIO",
             "includePath": [
-                "${workspaceFolder}/**"
+                "C:/Users/lisap/Desktop/Smarte Systemer/hydrawlics-kinematics/include",
+                "C:/Users/lisap/Desktop/Smarte Systemer/hydrawlics-kinematics/src",
+                "C:/Users/lisap/Desktop/Smarte Systemer/hydrawlics-kinematics/.pio/libdeps/megaatmega2560-linux/LiquidCrystal_I2C",
+                "C:/Users/lisap/.platformio/packages/framework-arduino-avr/libraries/Wire/src",
+                "C:/Users/lisap/.platformio/packages/framework-arduino-avr/cores/arduino",
+                "C:/Users/lisap/.platformio/packages/framework-arduino-avr/variants/mega",
+                "C:/Users/lisap/.platformio/packages/framework-arduino-avr/libraries/EEPROM/src",
+                "C:/Users/lisap/.platformio/packages/framework-arduino-avr/libraries/HID/src",
+                "C:/Users/lisap/.platformio/packages/framework-arduino-avr/libraries/SPI/src",
+                "C:/Users/lisap/.platformio/packages/framework-arduino-avr/libraries/SoftwareSerial/src",
+                ""
             ],
-            "defines": [],
-            "compilerPath": "/usr/bin/clang",
-            "cStandard": "c17",
-            "cppStandard": "c++17",
-            "intelliSenseMode": "linux-clang-x64"
+            "browse": {
+                "limitSymbolsToIncludedHeaders": true,
+                "path": [
+                    "C:/Users/lisap/Desktop/Smarte Systemer/hydrawlics-kinematics/include",
+                    "C:/Users/lisap/Desktop/Smarte Systemer/hydrawlics-kinematics/src",
+                    "C:/Users/lisap/Desktop/Smarte Systemer/hydrawlics-kinematics/.pio/libdeps/megaatmega2560-linux/LiquidCrystal_I2C",
+                    "C:/Users/lisap/.platformio/packages/framework-arduino-avr/libraries/Wire/src",
+                    "C:/Users/lisap/.platformio/packages/framework-arduino-avr/cores/arduino",
+                    "C:/Users/lisap/.platformio/packages/framework-arduino-avr/variants/mega",
+                    "C:/Users/lisap/.platformio/packages/framework-arduino-avr/libraries/EEPROM/src",
+                    "C:/Users/lisap/.platformio/packages/framework-arduino-avr/libraries/HID/src",
+                    "C:/Users/lisap/.platformio/packages/framework-arduino-avr/libraries/SPI/src",
+                    "C:/Users/lisap/.platformio/packages/framework-arduino-avr/libraries/SoftwareSerial/src",
+                    ""
+                ]
+            },
+            "defines": [
+                "PLATFORMIO=60118",
+                "ARDUINO_AVR_MEGA2560",
+                "F_CPU=16000000L",
+                "ARDUINO_ARCH_AVR",
+                "ARDUINO=10808",
+                "__AVR_ATmega2560__",
+                ""
+            ],
+            "cStandard": "gnu11",
+            "cppStandard": "gnu++11",
+            "compilerPath": "C:/Users/lisap/.platformio/packages/toolchain-atmelavr/bin/avr-gcc.exe",
+            "compilerArgs": [
+                "-mmcu=atmega2560",
+                ""
+            ]
         }
     ],
     "version": 4
