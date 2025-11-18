@@ -5,7 +5,7 @@
 // =====================================================================
 
 #define SELFTEST_ON_START 1          // Run relay polarity test at startup (disable after confirmed)
-#define RELAY_ACTIVE_LOW   true      // Set false if relay board is active-HIGH (depends on module type)
+#define RELAY_ACTIVE_LOW  true       // Set false if relay board is active-HIGH (depends on module type)
 //#define VERBOSE
 
 #include <Arduino.h>
@@ -18,7 +18,9 @@
 #include "GCodeCommandQueue.h"
 
 // --- I/O declerations ---
-constexpr uint8_t LCD_ADDR = 0x27; // LCD setup
+//constexpr uint8_t LCD_ADDR = 0x27; // LCD setup
+constexpr uint8_t STATUS_LED = 8; // 8 has PWM, fancy fading light
+constexpr uint8_t CALIBRATION_BUTTON = 21;
 
 constexpr uint8_t PUMP_PIN = 30; // dedicated pump relay pin
 
@@ -57,6 +59,7 @@ void selfTestOnce();
 void lcdClearLine(uint8_t row);
 void printFloatOrDash(float v, uint8_t d);
 void lcdFeedback();
+void calibrateBtnInterrupt();
 
 // --- Custom degree symbol for LCD ---
 const uint8_t DEG_CHAR = 0;
@@ -116,6 +119,12 @@ void setup() {
   lcd.setCursor(0,1); lcd.print("Angle ctrl ready");
   delay(700); lcd.clear();
 
+  pinMode(STATUS_LED, OUTPUT);
+  pinMode(CALIBRATION_BUTTON, INPUT_PULLUP);
+
+  digitalWrite(STATUS_LED, LOW);
+
+  attachInterrupt(CALIBRATION_BUTTON, calibrateBtnInterrupt, FALLING);
 
   pumpMgr.begin();
   selfTestOnce();  // One-time hardware verification
@@ -254,6 +263,20 @@ uint8_t calculateChecksum(String &line) {
 //  LCD for visuals
 void lcdClearLine(uint8_t row) { lcd.setCursor(0,row); for (int i=0;i<16;i++) lcd.print(' '); lcd.setCursor(0,row); }
 void printFloatOrDash(float v, uint8_t d){ if (isnan(v)||isinf(v)) lcd.print("--"); else lcd.print(v,d); }
+
+// Calibration interrupt
+void calibrateBtnInterrupt() {
+  // we dont really need debounce because the function will delay
+  armController.calibrateJoints();
+
+  // start the lad fading, taking about 2 seconds
+  for (int i=0;i<1000;i++) {
+    const float brightnessAmplitude = abs(sin(i*((2*M_PI)/1000))); // a little double blink indication
+    analogWrite(STATUS_LED, brightnessAmplitude*255);
+    delay(1);
+  }
+  digitalWrite(STATUS_LED, LOW);
+}
 
 //  Self-Test
 //  Verifies relay polarity and pin wiring at startup.
