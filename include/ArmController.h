@@ -130,6 +130,7 @@ public:
     void applyJointAngles(const JointAngles& angles);
     bool isAtTarget() const;
     void printJointAngles();
+    void printPistonLengths();
 #endif
 
     // G-Code processing

@@ -82,7 +82,6 @@ inline void pumpWrite(const bool on) {
 }
 
 //  Instances
-//  Only one joint is active in this prototype.
 Joint j0({
   J0_VALVE_EXTEND, J0_VALVE_RETRACT, 0,
   0.050, -180,   // base distance and angle
@@ -91,8 +90,8 @@ Joint j0({
 });
 Joint j1({
   J1_VALVE_EXTEND, J1_VALVE_RETRACT, 1,
-  0.050, -180,   // base distance and angle
-  0.151, 0,   // end distance and angle
+  0.111, -180,   // base distance and angle
+  0.070, -259.21,   // end distance and angle
   PISTON1_LEN_MIN, PISTON1_LEN_MAX
 });
 Joint j2({
@@ -103,8 +102,8 @@ Joint j2({
 });
 Joint j3({
   J3_VALVE_EXTEND, J3_VALVE_RETRACT, 3,
-  0.050, -180,   // base distance and angle
-  0.151, 0,   // end distance and angle
+  0.095, -180,   // base distance and angle
+  0.070, 0,   // end distance and angle
   PISTON1_LEN_MIN, PISTON1_LEN_MAX
 });
 Joint* joints[] = { &j0, &j1, &j2, &j3 };
@@ -161,6 +160,7 @@ void loop() {
   lcdFeedback();
 
 #ifdef VERBOSE
+  armController.printPistonLengths();
   armController.printJointAngles();
 #endif
 }

@@ -77,8 +77,12 @@ void Joint::update() {
   const long deltaTime = millis() - lastUpdate;
 
   // --- Step 1: Read current angle from rotary encoder ---
-  currentAngleDeg = re->getAngleDeg();
-  currentAngleDeg = constrain(currentAngleDeg, angle_min_deg, angle_max_deg);
+  const float circularAngle = re->getAngleDeg();
+  // the zero point should align with the joint zero point,
+  // however, we need to fix so that values between 360 and 180 are negatives:
+  // 359 => 359-360 == -1
+  const float nonCircAngle = circularAngle > 180 ? (circularAngle - 360) : circularAngle;
+  currentAngleDeg = constrain(nonCircAngle, angle_min_deg, angle_max_deg);
 #ifdef VERBOSE
   Serial.print("currentAngle:");
   Serial.print(currentAngleDeg);
@@ -159,6 +163,10 @@ float Joint::getCurrentAngleDeg() const {
 
 float Joint::getRawEncoderAngleDeg() const {
   return re->getAngleDeg();
+}
+
+float Joint::getCurrentPistonLength() const {
+  return calculatePistonLength(currentAngleDeg);
 }
 
 uint8_t Joint::getExtendDuty() const {
