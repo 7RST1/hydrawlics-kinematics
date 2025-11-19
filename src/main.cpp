@@ -91,7 +91,7 @@ Joint j0({
 Joint j1({
   J1_VALVE_EXTEND, J1_VALVE_RETRACT, 1,
   0.111, -180,   // base distance and angle
-  0.070, -259.21,   // end distance and angle
+  0.070, -79.21,   // end distance and angle
   PISTON1_LEN_MIN, PISTON1_LEN_MAX
 });
 Joint j2({
