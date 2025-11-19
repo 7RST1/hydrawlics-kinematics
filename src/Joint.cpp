@@ -157,6 +157,10 @@ float Joint::getCurrentAngleDeg() const {
   return currentAngleDeg;
 }
 
+float Joint::getRawEncoderAngleDeg() const {
+  return re->getAngleDeg();
+}
+
 uint8_t Joint::getExtendDuty() const {
   return v->getLastExtendDuty();
 }
@@ -172,7 +176,10 @@ float Joint::getLastPID() const {
 
 // Configuration
 void Joint::setOffsetToCurrentPhysicalRotation(const float currentPhysicalRotation) {
-  const float sensorReading = re->getAngleDeg();
+  // Use RAW sensor reading (without offset) to avoid issues with repeated calibration
+  const uint16_t rawReading = re->getRawAngle();
+  const float sensorReading = (static_cast<float>(rawReading) / 4096.0f) * 360.0f;
+
   // so we calibrate the joints mostly when the joints are straight,
   // meaning current rotation will be set as zero, however
   // some of the joints do not have sensor adapters that allow

@@ -129,6 +129,7 @@ public:
 
     void applyJointAngles(const JointAngles& angles);
     bool isAtTarget() const;
+    void printJointAngles();
 #endif
 
     // G-Code processing
@@ -179,6 +180,7 @@ private:
     Joint* j2;
     Joint* j3;
     JointAngles targetAngles;
+    unsigned long lastAnglePrintTime = 0;
 #endif
 
     // Helper functions

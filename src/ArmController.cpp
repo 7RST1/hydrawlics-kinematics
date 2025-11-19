@@ -439,5 +439,22 @@ void ArmController::applyJointAngles(const JointAngles& angles) {
     j2->setTargetAngle(angles.joint2Angle);
     j3->setTargetAngle(angles.joint3Angle);
 }
+
+void ArmController::printJointAngles() {
+    // Print raw encoder angles at 10Hz (every 100ms)
+    if (millis() - lastAnglePrintTime >= 100) {
+        lastAnglePrintTime = millis();
+
+        Serial.print("J0: ");
+        Serial.print(j0->getRawEncoderAngleDeg(), 1);
+        Serial.print(", J1: ");
+        Serial.print(j1->getRawEncoderAngleDeg(), 1);
+        Serial.print(", J2: ");
+        Serial.print(j2->getRawEncoderAngleDeg(), 1);
+        Serial.print(", J3: ");
+        Serial.println(j3->getRawEncoderAngleDeg(), 1);
+    }
+}
+
 #endif
 
